@@ -1,0 +1,7 @@
+S -> XY | YX | X | Y
+XY -> X ', then' Y | X 'then' Y | X 'and then' Y
+YX -> Y ', then' X | Y 'then' X | Y 'and then' X
+X -> 'move <X> to the' XDir
+Y -> 'go' YDir ' <Y>'
+XDir -> 'left' | 'right'
+YDir -> 'up' | 'down'
