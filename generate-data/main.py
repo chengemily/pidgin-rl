@@ -29,7 +29,7 @@ def parse_args():
                         default="fr",
                         help="choices are (en, fr)")
     parser.add_argument("--n_samples_per_string", type=int,
-                        default=100,
+                        default=1000,
                         help="number of samples to generate per cfg string")
 
     return parser.parse_args()
