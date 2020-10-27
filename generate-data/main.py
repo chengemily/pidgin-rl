@@ -9,7 +9,6 @@ def parse_args():
     parser = argparse.ArgumentParser(
             description="Training set generator")
 
-
     parser.add_argument("--cfg_dir_root", type=str,
                         default="./cfgs/",
                         help="path to config folder")

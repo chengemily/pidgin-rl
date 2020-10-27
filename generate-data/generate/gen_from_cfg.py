@@ -24,7 +24,7 @@ def generate(filename, start=None, depth=None, n=None):
     if n:
         iter = itertools.islice(iter, n)
 
-    return [' '.join(string) for string in list(iter)]
+    return [' '.join(string).replace(' , ', ', ') for string in list(iter)]
 
 
 def _generate_all(grammar, items, depth):
