@@ -55,12 +55,12 @@ def train_tokenizer(corpora, model='wp', vocab_size=30000,
     # save model
     if save:
         # raise warning if model already there
-        if os.path.isdir(os.path.join('tokenize_models', filename)) and not overwrite:
+        if os.path.isdir(os.path.join('models', filename)) and not overwrite:
             raise FileExistsError('You are attempting to overwrite an existing file. Please use a different \
                                   file name to save this model or set overwrite=True to overwrite')
             return
         else:
-            tokenizer.save(os.path.join('tokenize_models', filename))
+            tokenizer.save(os.path.join('models', filename))
 
     return tokenizer
 
@@ -102,24 +102,24 @@ def decode_batch(encoded_batch, tokenizer_):
 
 
 if __name__ == "__main__":
-
-    tokenizer = train_tokenizer(['../generate-data/data/train/en.csv',
-                    '../generate-data/data/train/fr.csv'],
-                    vocab_size=1000) # c
-
-
-    # # load save tokenizer
-    tokenizer = load_tokenizer_from_file(filename='tokenize_models/wp_model.json')
-
-    # testing here :
-    batch = ['Move Three to the right and then four up, -5, 10',
-             'Allez de quatre à gauche, et puis montez de cinquante',
-             'Montez de ten to the left, et puis deux to the right',
-             'what about this random sentence',
-             'allez down soisante, and then montez vingte et un',
-             'I really wonder how well the tokenizer will work']
-
-    print(f'tokenizer: {dir(tokenizer)}')
-    encoded_batch = encode_batch(tokenizer, batch)
-    for seq, enc in zip(batch, encoded_batch):
-        print(f'Seq: {seq} \nEnc: {enc.tokens}\n')
+    print('running tokenizer')
+    # tokenizer = train_tokenizer(['../generate-data/data/train/en.csv',
+    #                 '../generate-data/data/train/fr.csv'],
+    #                 vocab_size=1000) # c
+    #
+    #
+    # # # load save tokenizer
+    # tokenizer = load_tokenizer_from_file(filename='models/wp_model.json')
+    #
+    # # testing here :
+    # batch = ['Move Three to the right and then four up, -5, 10',
+    #          'Allez de quatre à gauche, et puis montez de cinquante',
+    #          'Montez de ten to the left, et puis deux to the right',
+    #          'what about this random sentence',
+    #          'allez down soisante, and then montez vingte et un',
+    #          'I really wonder how well the tokenizer will work']
+    #
+    # print(f'tokenizer: {dir(tokenizer)}')
+    # encoded_batch = encode_batch(tokenizer, batch)
+    # for seq, enc in zip(batch, encoded_batch):
+    #     print(f'Seq: {seq} \nEnc: {enc.tokens}\n')
