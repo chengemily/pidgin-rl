@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file:$PROJECT_DIR$/../../../../..//$PROJECT_DIR$/.idea/pidgin-rl.iml" filepath="$PROJECT_DIR$/.idea/pidgin-rl.iml" />
+      <module fileurl="file:$PROJECT_DIR$/../../../../..////wsl$/Ubuntu/home/emcheng/pidgin-rl/.idea/pidgin-rl.iml" filepath="wsl$/Ubuntu/../..////wsl$/Ubuntu/home/emcheng/pidgin-rl/.idea/pidgin-rl.iml" />
     </modules>
   </component>
 </project>
