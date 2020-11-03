@@ -103,23 +103,23 @@ def decode_batch(encoded_batch, tokenizer_):
 
 if __name__ == "__main__":
     print('running tokenizer')
-    # tokenizer = train_tokenizer(['../generate-data/data/train/en.csv',
-    #                 '../generate-data/data/train/fr.csv'],
-    #                 vocab_size=1000) # c
-    #
-    #
-    # # # load save tokenizer
-    # tokenizer = load_tokenizer_from_file(filename='models/wp_model.json')
-    #
-    # # testing here :
-    # batch = ['Move Three to the right and then four up, -5, 10',
-    #          'Allez de quatre à gauche, et puis montez de cinquante',
-    #          'Montez de ten to the left, et puis deux to the right',
-    #          'what about this random sentence',
-    #          'allez down soisante, and then montez vingte et un',
-    #          'I really wonder how well the tokenizer will work']
-    #
-    # print(f'tokenizer: {dir(tokenizer)}')
-    # encoded_batch = encode_batch(tokenizer, batch)
-    # for seq, enc in zip(batch, encoded_batch):
-    #     print(f'Seq: {seq} \nEnc: {enc.tokens}\n')
+    tokenizer = train_tokenizer(['../generate-data/data/train/en.csv',
+                    '../generate-data/data/train/fr.csv'],
+                    vocab_size=1000) # c
+
+
+    # # load save tokenizer
+    tokenizer = load_tokenizer_from_file(filename='models/wp_model.json')
+
+    # testing here :
+    batch = ['Move Three to the right and then four up, -5, 10',
+             'Allez de quatre à gauche, et puis montez de cinquante',
+             'Montez de ten to the left, et puis deux to the right',
+             'what about this random sentence',
+             'allez down soisante, and then montez vingte et un',
+             'I really wonder how well the tokenizer will work']
+
+    print(f'tokenizer: {dir(tokenizer)}')
+    encoded_batch = encode_batch(tokenizer, batch)
+    for seq, enc in zip(batch, encoded_batch):
+        print(f'Seq: {seq} \nEnc: {enc.tokens}\n')
