@@ -47,9 +47,8 @@ def train_tokenizer(corpora, model='wp', vocab_size=1000,
 
     # make lowercase, pre-tokenize, then tokenize according to model arg
     tokenizer.normalizer = normalizers.Sequence([Replace(str(i), '') for i in range(10)] # workout for regex not working to replace digits
-                                                 + [Replace('-', ' '),  # replace hyphen with space
-                                                    Replace(',"', '"'), # replace commas before and after message
-                                                    Replace('",', '"'), Lowercase()])                                                # Replace('-', ''),
+                                                + [Replace(',"', '"'), # replace commas before and after message
+                                                Replace('",', '"'), Lowercase()])
 
     # note - this normalizer still leaves a weird comma at the end. Needs to be removed
     tokenizer.pre_tokenizer = Whitespace() # removes white spaces
@@ -60,7 +59,6 @@ def train_tokenizer(corpora, model='wp', vocab_size=1000,
     # tokenizer.save(os.path.join('models', filename + '_no_unk'))
     # tokenizer.model = str_to_tokenizer[model][0].from_file(os.path.join('models', filename + '_no_unk'), unk_token="[UNK]")
 
-
     # save model
     if save:
         # raise warning if model already there
@@ -70,8 +68,6 @@ def train_tokenizer(corpora, model='wp', vocab_size=1000,
             return
         else:
             tokenizer.save(os.path.join('../models', filename))
-
-
 
     return tokenizer
 
@@ -125,8 +121,6 @@ def decode_batch(encoded_batch, tokenizer_):
     return tokenizer_.decode_batch(encoded_batch)
 
 
-
-
 if __name__ == "__main__":
     print('running tokenizer')
     tokenizer = train_tokenizer(['../../generate-data/data/train/en.csv',
@@ -151,4 +145,3 @@ if __name__ == "__main__":
     encoded_batch = encode_batch(tokenizer, batch)
     for seq, enc in zip(batch, encoded_batch):
         print(f'Seq: {seq} \nEnc: {enc.tokens}\n')
-

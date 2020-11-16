@@ -25,6 +25,7 @@ def main():
     print('Encoding Tokens')
     fr_data = tokenize_.read_cfg_train_data(fr_corpus)
     en_data = tokenize_.read_cfg_train_data(en_corpus)
+
     enc_fr = tokenize_.encode_batch(tokenizer, fr_data)
     enc_en = tokenize_.encode_batch(tokenizer, en_data)
     encodings = enc_fr + enc_en
@@ -64,7 +65,6 @@ def main():
     sentence_embeddings_en = []
     for sentence in ix_tokens_en:
         sentence_embeddings_en.append([word_embeddings[word] for word in sentence])
-
 
     # save everything as json
     print('Saving to json')
