@@ -28,7 +28,7 @@ def parse_args():
                         default="fr",
                         help="choices are (en, fr)")
     parser.add_argument("--n_samples_per_string", type=int,
-                        default=1000,
+                        default=20000,
                         help="number of samples to generate per cfg string")
 
     return parser.parse_args()
@@ -59,7 +59,7 @@ def main():
     print_args(args)
 
     # Generate data
-    data = pd.DataFrame(generate_data(args), columns=["string", "x", "y"])
+    data = pd.DataFrame(generate_data(args), columns=["string", "x", "y"]).sample(frac=1)
     print(data)
 
     # Save data
