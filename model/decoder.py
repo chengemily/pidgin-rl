@@ -5,12 +5,12 @@ import math
 
 
 class Encoder(nn.Module):
-    def __init__(self, embed_dim, hidden_dim, rnn_type='GRU', nlayers=1, dropout=0., bidirectional=True):
+    def __init__(self, embed_dim, hidden_dim, rnn_type='GRU', nlayers=1, dropout=0., bidirectional=True, batch_first=True):
         super(Encoder, self).__init__()
         self.bidirectional = bidirectional
         rnn_cell = getattr(nn, rnn_type) # get constructor from torch.nn
         self.rnn = rnn_cell(
-            embed_dim, hidden_dim, nlayers, dropout=dropout, bidirectional=bidirectional
+            embed_dim, hidden_dim, nlayers, dropout=dropout, bidirectional=bidirectional, batch_first=batch_first
         )
 
     def forward(self, input, hidden=None):
@@ -47,19 +47,21 @@ class Attention(nn.Module):
 
     def forward(self, query, keys, values):
         # Query = [BxQ]
-        # Keys = [TxBxK]
-        # Values = [TxBxV]
+        # Keys = [BxTxK]
+        # Values = [BxTxV]
         # Outputs = a:[TxB], lin_comb:[BxV]
 
         # Here we assume q_dim == k_dim (dot product attention)
 
         query = query.unsqueeze(1) # [BxQ] -> [Bx1xQ]
-        keys = keys.transpose(0,1).transpose(1,2) # [TxBxK] -> [BxKxT]
+        # print("Q size: ", query.size())
+        keys = keys.transpose(1,2) # [BxTxK] -> [BxKxT]
+        # print("K size: ", keys.size())
         energy = torch.bmm(query, keys) # [Bx1xQ]x[BxKxT] -> [Bx1xT]
         energy = F.softmax(energy.mul_(self.scale), dim=2) # scale, normalize
         self.att_scores = energy
 
-        values = values.transpose(0,1) # [TxBxV] -> [BxTxV]
+        # values = values.transpose(0,1) # [TxBxV] -> [BxTxV]
         linear_combination = torch.bmm(energy, values).squeeze(1) #[Bx1xT]x[BxTxV] -> [BxV]
         return energy, linear_combination
 
@@ -105,11 +107,7 @@ class Vectorizer(nn.Module):
         else:
           hidden = hidden[-1]
 
-        # max across T?
-        # Other options (work worse on a few tests):
-        # linear_combination, _ = torch.max(outputs, 0)
-        # linear_combination = torch.mean(outputs, 0)
-
-        energy, linear_combination = self.attention(hidden, outputs, outputs)
-        output_vec = self.fc(linear_combination)
-        return output_vec, energy
+        # energy, linear_combination = self.attention(hidden, outputs, outputs)
+        # output_vec = self.fc(linear_combination)
+        output_vec = self.fc(hidden)
+        return output_vec, None #energy
