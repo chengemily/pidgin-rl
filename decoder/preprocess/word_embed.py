@@ -44,7 +44,7 @@ def transform_tokens_to_ix(tokens):
 
 def train_word2vec_model(data,
                          save=True,
-                         filename='models/embed_model.json',
+                         filename='../models/bpe_embed_model.json' ,
                          **kwargs):
     '''
     Given a tokenized corpus data, trains a word2vec model with
