@@ -101,7 +101,7 @@ def train(model, data, optimizer, criterion, args):
         loss = criterion(pred, y.float())
         total_loss += loss
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
 
         print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
@@ -128,9 +128,9 @@ def evaluate(model, data, criterion, args, type='Valid'):
                 batch_num, len(data[0]), time.time() - t), end='\r', flush=True)
             t = time.time()
 
-            if batch_num == 1:
-                print(pred)
-                print(y)
+            # if batch_num == 1:
+            #     print(pred)
+            #     print(y)
 
     print()
     print("[{} loss]: {:.5f}".format(type, total_loss / (len(data[0]) * args.batch_size)))
@@ -142,7 +142,9 @@ def main():
     print_args(args)
 
     cuda = torch.cuda.is_available() and args.cuda
+    print(torch.cuda.is_available())
     device = torch.device("cpu") if not cuda else torch.device("cuda:0")
+    input(device)
     seed_everything(seed=1337, cuda=cuda)
 
     # Load dataset iterators

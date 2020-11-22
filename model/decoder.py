@@ -99,6 +99,10 @@ class Vectorizer(nn.Module):
 
     def forward(self, input):
         outputs, hidden = self.encoder(self.embedding(input))
+
+        # concatenate outputs vectors
+        # outputs = outputs.reshape(outputs.size()[0], outputs.size()[1] * outputs.size()[2])
+
         if isinstance(hidden, tuple): # LSTM
           hidden = hidden[1] # take the cell state
 
@@ -107,7 +111,9 @@ class Vectorizer(nn.Module):
         else:
           hidden = hidden[-1]
 
+        energy=None
+        # output_vec = self.fc(outputs)
         # energy, linear_combination = self.attention(hidden, outputs, outputs)
         # output_vec = self.fc(linear_combination)
         output_vec = self.fc(hidden)
-        return output_vec, None #energy
+        return output_vec, energy
