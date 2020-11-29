@@ -9,13 +9,13 @@ def main():
     # TODO - make these arg parse arguments?
     en_corpus = '../generate-data/data/train/en.csv'
     fr_corpus = '../generate-data/data/train/fr.csv'
-    vocab_size = 1000
+    vocab_size = 120
     vector_size = 10
 
     # Load tokenizer or train if not present
     print('Training tokenizer')
-    if os.path.isfile('models/bpe_model.json'):
-        tokenizer = tokenize_.load_tokenizer_from_file(filename='models/bpe_model.json')
+    if os.path.isfile('models/wp_model.json'):
+        tokenizer = tokenize_.load_tokenizer_from_file(filename='models/wp_model.json')
     else:
         tokenizer = tokenize_.train_tokenizer([en_corpus, fr_corpus],
                     vocab_size=vocab_size) # c
@@ -69,13 +69,6 @@ def main():
     # save everything as json
     print('Saving to json')
 
-    data = {}
-    # data['word_to_ix'] = word_to_ix
-    # data['ix_tokens'] = {'fr': ix_tokens_fr, 'en': ix_tokens_en}
-    # data['tokens'] = ix_tokens # list of sentence tokens
-    data['word_to_vec'] = word_embeddings   # dict with k,v = word: vec
-    # data['embeddings'] = {'fr': sentence_embeddings_fr, 'en': sentence_embeddings_en} # list of sentence embeddings
-
     # dump vocabulary
     with open('data/vocab.json', 'w') as f:
         json.dump(word_to_ix, f)
@@ -94,7 +87,7 @@ def main():
 
     # dump word embeddings
     with open('data/embeddings.json', 'w') as outfile:
-        json.dump(data, outfile)
+        json.dump({'word_to_vec': word_embeddings}, outfile)
 
 
 
