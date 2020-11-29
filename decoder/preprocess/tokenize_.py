@@ -19,7 +19,7 @@ def read_cfg_train_data(filename, header=True):
 
 ###### Functions for training tokenizern ######
 
-def train_tokenizer(corpora, model='wp', vocab_size=1000,
+def train_tokenizer(corpora, model='wp', vocab_size=50,
                     save=True, filename='wp_model.json', overwrite=False):
     '''
     Given a set of training corpora, trains a tokenizer to tokenize
@@ -125,20 +125,19 @@ if __name__ == "__main__":
     print('running tokenizer')
     tokenizer = train_tokenizer(['../../generate-data/data/train/en.csv',
                     '../../generate-data/data/train/fr.csv'],
-                    model='bpe',
-                    vocab_size=1000,
-                    filename='bpe_model.json') # c
+                    model='wp',
+                    vocab_size=150,
+                    filename='wp_model.json') # c
 
 
     # # load save tokenizer
-    tokenizer = load_tokenizer_from_file(filename='../models/bpe_model.json')
+    tokenizer = load_tokenizer_from_file(filename='../models/wp_model.json')
 
     # testing here :
-    batch = ['Move Three to the right and then four up, -5, 10',
+    batch = ['descendez', 'allez', 'gauche', 'la droite', 'cinquante', 'fifty',
+             'quatre-vingts dix-sept', 'fifteen',
              'Allez de quatre à gauche, et puis montez de cinquante-quatre',
-             'Montez de ten to the left, et puis deux to the right',
-             'what about this random sentence',
-             'allez down soixante, and then montez vingt et un',
+             'allez de soixante à droite, and then montez vingt et un',
              'I really wonder how well the tokenizer will work']
 
     print(f'tokenizer: {dir(tokenizer)}')
