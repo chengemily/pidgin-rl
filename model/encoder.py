@@ -12,42 +12,61 @@ word_to_vec = {'<cls>': [-3.6961872577667236, -4.380651950836182, 0.837680160999
                          -5.620670795440674, -2.2317745685577393, -3.4087929725646973, -5.6453375816345215, -0.7817500233650208]
                }
 
+
 class Decoder(nn.Module):
     def __init__(self, output_dim, hidden_dim, rnn_type='GRU', nlayers=1, dropout=0.):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim
-        self.embedding = nn.Embedding(output_dim, hidden_dim) # embedding matrix
+        self.output_dim = output_dim
+        self.embedding = nn.Embedding(self.output_dim, hidden_dim) # 1st param - size of vocab, 2nd param - size of embedding vector
+        self.dropout = nn.Dropout(dropout)
 
         # Define recurrent unit
         self.rnn_type = rnn_type
         rnn_cell = getattr(nn, rnn_type) # get constructor from torch.nn
-        self.rnn = rnn_cell(
-            output_dim, hidden_dim, nlayers, dropout=dropout) # note input dim should be output_dim
+        self.rnn = rnn_cell(hidden_dim, # 1st param - input size, 2nd param - hidden size
+                            hidden_dim,
+                            nlayers, dropout=dropout,
+                            batch_first=True)  # if inputs are (batch_size, seq, feature)
 
+        # Define params needed for output unit
         # Define linear and softmax units, assumes input of shape (batch, sentence_length, vector_length)
-        self.out = nn.Linear(hidden_dim, output_dim)
-        # self.softmax = nn.LogSoftmax(dim=1) # dim=1 means take softmax across first dimension
+        self.out = nn.Linear(hidden_dim, output_dim) # 1st param - size of input, 2nd param - size of output
+        self.softmax = nn.LogSoftmax(dim=1) # dim=1 means take softmax across first dimension
         
 
     def forward(self, input=None, h0=None):
-        if not input:
-            input = self.init_output()
-        output = self.embedding(input).view(1, 1, -1)
-        output = F.relu(output)
-        output, hidden = self.rnn(output, h0)
-        if isinstance(hidden, tuple):
-            hidden = hidden[1] # take the cell state if LSTM
-        # output = self.softmax(self.out(output[0])) #TODO - why output[0]?
-        output = self.out(output[0])
+        if input == None:
+            input = self.init_output() # the
+
+        # if LSTM, change hidden state
+  
+        if self.rnn_type == 'LSTM' and not isinstance(h0, tuple):
+            h0 = (h0, h0)
+
+        output = self.embedding(input).unsqueeze(1) # TODO - added a third dimension using unsqueeze, check later if errors
+        print(f'embedded input: {output.shape}')
+        output = self.dropout(output)
+
+        # output = F.relu(output)
+        print(f'output shape: {output.size()}')
+        print(f'hidden shape: {h0.size()}')
+
+        output, hidden = self.rnn(output, h0) #TODO - make sure h0 is a tuple if using LSTM, one val if gru
+        print('finished rnn')
+
+        # pass output through fcl and softmax
+        output = self.out(output) # take output[0]?
+        output = self.softmax(output) #TODO - why output[0]?
+        _, output = output.topk(1) # maybe squeeze?    # get top index (i.e. argmax)
         return output, hidden
 
-    # def init_output(self):
-    #     # TODO - why initialize with zeros? How to initialize with <cls> token?
-    #     # output = torch.zeros(1,1, self.hidden_dim) # TODO - actually, find vector representing cls
-    #     # output[1] = 1
-    #     # return output
-    # attempt 2, but probably not even needed
-    #     return torch.tensor(word_to_vec['<cls>'])
+    def init_output(self):
+        # Returns the vector equivalent of the cls token, one-hot-encoded
+        # init_output = torch.zeros(1,1,self.output_dim)
+        # init_output[0][0][1] = 1 # the <cls> token
+        # return init_output
+        return torch.tensor(1)
 
 
 
@@ -55,19 +74,22 @@ class FC_Encoder(nn.Module):
     def __init__(self, layer_dims=[]):
         super(FC_Encoder, self).__init__()
         layer_dims = [2] + layer_dims # input is size 2 vector
-        self.layers = [nn.Linear(layer_dims[i], layer_dims[i+1]) for i in range(len(layer_dims)-1)]
+        print(f'fcl layer dims : {layer_dims}')
+        self.layers =  [nn.Linear(layer_dims[i], layer_dims[i+1]) for i in range(len(layer_dims)-1)]
+        print(self.layers)
         # TODO - add activation functions between layers?
 
     def forward(self, input):
         inp = input
         for layer in self.layers:
             inp = layer(inp)
+            print(f'input size: {inp.size()}')
         return inp
 
 
 
 class Sequence_Generator(nn.Module):
-    def __init__(self, embedding, decoder, fc_layer_dims, hidden_dim, target_length):
+    def __init__(self, embedding, decoder, fc_layer_dims, hidden_dim, target_length, output_dims, rnn_type='GRU'):
         """
         Entire vector -> str model (the 'encoder' in our problem setup)
         :param embedding: embedder class, where embedding(input) returns a vector
@@ -77,9 +99,12 @@ class Sequence_Generator(nn.Module):
         """
         super(Sequence_Generator, self).__init__()
         self.target_length = target_length
+        self.output_dims = output_dims
         self.embedding = embedding
         self.decoder = decoder
-        self.fc = FC_Encoder(fc_layer_dims + [hidden_dim])
+        self.fc = FC_Encoder(fc_layer_dims)
+        self.rnn_type = rnn_type
+        # self.hidden_dim = hidden_dim
         #
         # param_size = sum([p.nelement() for p in self.parameters()]) # TODO - not sure where self.parameters is coming from
         # print('Total param size: {}'.format(param_size))
@@ -87,28 +112,44 @@ class Sequence_Generator(nn.Module):
     def forward(self, input): # Input should be [x,y] value
         '''
         :param input: should be a [x,y] pair
-        :return:
+        :return: output_tensor: tensor of word predictions in indexed form
         '''
         # get initial hidden and input
+        print(f'input to seq generator: {input}')
+        print(f'fully connected: {self.fc}')
+        # pass through FCL
         init_hidden = self.fc(input)
 
-        OUTPUTS = []
+        # if lstm, make sure to have both c and h as a tuple for the decoder
+        if self.rnn_type == 'LSTM':
+            init_hidden = (init_hidden, init_hidden)
+        print(f'init hidden layer: {init_hidden}\nshape: {init_hidden.shape}')
+
+        # initialize tensor of predictions (prediction for only one sentence)
+        output_tensor = torch.zeros(self.target_length)
+        output_tensor[0] = 1 # set first output to be <cls>
 
         # init decoder input and hidden
-        decoder_input = torch.tensor(word_to_vec['<cls>']) #TODO - change word_to_vec to be 
+        decoder_input = None
         decoder_hidden = init_hidden
 
-        for di in range(self.target_length):
-            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
-            OUTPUTS.append(decoder_output) # keep track of current output
-            # from pytorch tutorial:
-            # topv, topi = decoder_output.topk(1)
-            # decoder_input = topi.squeeze().detach()  # detach from history as input
-            decoder_input = decoder_output
-            # if decoder_input.item() == EOS_token: # not doing anything right now
-            #     break
-        
-        return torch.tensor(OUPUTS)
+        print(f'starting rnn')
+        # RNN loop
+        for di in range(1, self.target_length):
+            print(f'rnn loop {di}, before self.decoder')
+            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden) #TODO - handle LSTMs here too
+            print(f'rnn loop {di}, after self.decoder')
+
+            # get top index from softmax of previous layer
+            topv, topi = decoder_output.topk(1)
+            top_ix = topi.squeeze().detach()
+            output_tensor[di] = top_ix
+
+            decoder_input = top_ix
+            if top_ix.item() == 2: # if end token
+                break
+
+        return output_tensor
 
 
 
