@@ -26,7 +26,7 @@ class Decoder(nn.Module):
         rnn_cell = getattr(nn, rnn_type) # get constructor from torch.nn
         self.rnn = rnn_cell(hidden_dim, # 1st param - input size, 2nd param - hidden size
                             hidden_dim,
-                            nlayers, dropout=dropout,
+                            nlayers, dropout=dropout,#,
                             batch_first=True)  # if inputs are (batch_size, seq, feature)
 
         # Define params needed for output unit
@@ -44,7 +44,7 @@ class Decoder(nn.Module):
         if self.rnn_type == 'LSTM' and not isinstance(h0, tuple):
             h0 = (h0, h0)
 
-        output = self.embedding(input).unsqueeze(1) # TODO - added a third dimension using unsqueeze, check later if errors
+        output = self.embedding(input).view(-1, 1, self.hidden_dim) # TODO - added a third dimension using unsqueeze, check later if errors
         print(f'embedded input: {output.shape}')
         output = self.dropout(output)
 
@@ -52,6 +52,7 @@ class Decoder(nn.Module):
         print(f'output shape: {output.size()}')
         print(f'hidden shape: {h0.size()}')
 
+        print(f'started rnn')
         output, hidden = self.rnn(output, h0) #TODO - make sure h0 is a tuple if using LSTM, one val if gru
         print('finished rnn')
 

@@ -28,7 +28,7 @@ def make_parser():
                         help='size of word embeddings [Uses pretrained on 50, 100, 200, 300]')
     parser.add_argument('--hidden', type=int, default=300, # changing hidden to match emsize
                         help='number of hidden units for the RNN decoder')
-    parser.add_argument('--nlayers', type=int, default=2,
+    parser.add_argument('--nlayers', type=int, default=1,
                         help='number of layers of the RNN decoder')
     parser.add_argument('--lr', type=float, default=1e-3,
                         help='initial learning rate')
@@ -85,7 +85,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
 
         # Forward pass
         # print(f'initial x : {x}')
-        init_hidden = fcl(x).unsqueeze(1)  # make sure last dim is 1 if using indices
+        init_hidden = fcl(x).unsqueeze(0)  # hidden dim is (num_layers, batch, hidden_size)
         if args.model == 'LSTM':
             init_hidden = (init_hidden, init_hidden)
         # print(f'x after fcl, hidden batch : {init_hidden}')
@@ -104,22 +104,21 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
             print(f'rnn loop {di}, before self.decoder')
             decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden) #TODO - handle LSTMs here too
             print(f'rnn loop {di}, after self.decoder')
-            print(f'decoder_output: {decoder_output}')
 
             # get top index from softmax of previous layer
             topv, topi = decoder_output.topk(1)
             # decoder_input = topi.squeeze().detach()
             decoder_input = topi.detach()
-            loss += criterion(decoder_output, y[:,di])
+            loss += criterion(decoder_output.float(), y[:,di]) #cast as float so mse comp works
             # if top_i.item() == 2: # if end token
             #     break
 
         # Compute loss
         # loss = criterion(pred, y) # make sure y is off
         total_loss += loss
+        loss.requires_grad = True
         loss.backward()
         torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
-        fcl_optimizer.step()
         decoder_optimizer.step()
 
         print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
