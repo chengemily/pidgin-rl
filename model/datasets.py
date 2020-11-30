@@ -13,7 +13,7 @@ def load_json(path):
         data = json.load(f)
     return data
 
-# TODO: change architecture to weight matrix, save tokenizer and load
+
 def preprocess_data(data_path, embeds_path, lang='fr'):
     """
     Loads pre-embedded dataset and labels, in a random (but consistent) order.
@@ -24,9 +24,10 @@ def preprocess_data(data_path, embeds_path, lang='fr'):
     X = load_json(embeds_path)[lang] # list (dataset) of list (command) of list (word embedding)
     data = pd.read_csv(data_path)
     X_str = data['string'].tolist()
-    y = data[['x', 'y']].values
+    y = data[['x', 'y']].values / 100
 
     return X_str, X, y
+
 
 def train_test_split(X, y, spl = 0.8):
     """
@@ -61,12 +62,15 @@ def load_data(data_path, embeds_path, lang, batch_size, device):
     print("Loading data...")
     X_str, X, y = preprocess_data(data_path, embeds_path, lang=lang)
     Xtrain, ytrain, Xtest, ytest = train_test_split(X, y)
+    Xtrain_len, Xtest_len = [sum(length > 0 for length in sentence) for sentence in Xtrain], [sum(length > 0 for length in sentence) for sentence in Xtest]
     Xtrain_batched = batch_data(batch_size, Xtrain, device)
     Xtest_batched = batch_data(batch_size, Xtest, device)
+    Xtrain_len_batched = batch_data(batch_size, Xtrain_len, device)
+    Xtest_len_batched = batch_data(batch_size, Xtest_len, device)
     ytrain_batched = batch_data(batch_size, ytrain, device)
     ytest_batched = batch_data(batch_size, ytest, device)
 
-    return X_str, (Xtrain_batched, ytrain_batched), (Xtest_batched, ytest_batched)
+    return X_str, (Xtrain_batched, Xtrain_len_batched, ytrain_batched), (Xtest_batched, Xtest_len_batched, ytest_batched)
 
 
 if __name__ == "__main__":

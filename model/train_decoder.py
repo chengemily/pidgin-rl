@@ -17,24 +17,26 @@ from decoder import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch RNN Classifier w/ attention')
-    parser.add_argument('--save_path', type=str, default='saved_models/fr_decoder/model.pt')
+    parser.add_argument('--save_path', type=str, default='saved_models/fr_decoder/model_large.pt')
     parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/fr.csv')
     parser.add_argument('--lang', type=str, default='fr')
-    parser.add_argument('--embeds_path', type=str, default='../decoder/data/indexed_data.json',
+    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
                         help='Embeddings path')
-    parser.add_argument('--vocab_path', type=str, default='../decoder/data/vocab.json',
+    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
                         help='Embeddings path')
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--model', type=str, default='LSTM',
                         help='type of recurrent net [LSTM, GRU]')
-    parser.add_argument('--emsize', type=int, default=10,
+    parser.add_argument('--emsize', type=int, default=20,
                         help='size of word embeddings')
-    parser.add_argument('--hidden', type=int, default=10,
+    parser.add_argument('--hidden', type=int, default=20,
                         help='number of hidden units for the RNN encoder')
-    parser.add_argument('--nlayers', type=int, default=2,
+    parser.add_argument('--nlayers', type=int, default=1,
                         help='number of layers of the RNN encoder')
     parser.add_argument('--lr', type=float, default=1e-3,
                         help='initial learning rate')
+    parser.add_argument('--wdecay', type=float, default=1e-3,
+                        help='weight decay')
     parser.add_argument('--clip', type=float, default=5,
                         help='gradient clipping')
     parser.add_argument('--epochs', type=int, default=10,
@@ -47,9 +49,10 @@ def make_parser():
                         help='[USE] bidirectional encoder')
     parser.add_argument('--cuda', action='store_false',
                         help='[DONT] use CUDA')
-    parser.add_argument('--fine', action='store_true',
-                        help='use fine grained labels in SST')
+    parser.add_argument('--use_outputs', action='store_true', help='concat outputs mode')
+    parser.add_argument('--use_attn', action='store_true', help='use dot prod attn')
     return parser
+
 
 def print_args(args):
     """
@@ -68,7 +71,7 @@ def seed_everything(seed, cuda=False):
         torch.cuda.manual_seed_all(seed)
 
 
-def train(model, data, optimizer, criterion, args):
+def train(model, data, optimizer, criterion, device, args):
     """
 
     :param model: (nn.Module) model
@@ -87,10 +90,11 @@ def train(model, data, optimizer, criterion, args):
         model.zero_grad()
 
         x = batch
-        y = data[1][batch_num]
+        x_len = data[1][batch_num]
+        y = data[2][batch_num]
 
         # Forward pass
-        pred, attn = model(x)
+        pred, attn = model(x.to(device), x_len)
         attn_maps.append(attn)
 
         # if batch_num % 100 == 0:
@@ -105,35 +109,36 @@ def train(model, data, optimizer, criterion, args):
         optimizer.step()
 
         print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
-            batch_num, len(data[0]), time.time() - t, total_loss / (batch_num * len(batch))), end='\r', flush=True)
+            batch_num, len(data[0]), time.time() - t, 100**2 * total_loss / (batch_num * len(batch))), end='\r', flush=True)
         t = time.time()
 
     print()
-    print("[Loss]: {:.5f}".format(total_loss / (args.batch_size * len(data[0]))))
+    print("[Loss]: {:.5f}".format(100**2 * total_loss / (args.batch_size * len(data[0]))))
     return total_loss / (args.batch_size * len(data[0]))
 
 
-def evaluate(model, data, criterion, args, type='Valid'):
+def evaluate(model, data, criterion, device, args, type='Valid'):
     model.eval()
     t = time.time()
     total_loss = 0
     with torch.no_grad():
         for batch_num, batch in enumerate(data[0]):
             x = batch
-            y = data[1][batch_num]
+            x_lens = data[1][batch_num]
+            y = data[2][batch_num]
 
-            pred, attn = model(x)
+            pred, attn = model(x.to(device), x_lens)
             total_loss += float(criterion(pred.float(), y))
             print("[Batch]: {}/{} in {:.5f} seconds".format(
                 batch_num, len(data[0]), time.time() - t), end='\r', flush=True)
             t = time.time()
 
-            # if batch_num == 1:
-            #     print(pred)
-            #     print(y)
+            if batch_num == 1:
+                print(pred)
+                print(y)
 
     print()
-    print("[{} loss]: {:.5f}".format(type, total_loss / (len(data[0]) * args.batch_size)))
+    print("[{} loss]: {:.5f}".format(type, 100**2 * total_loss / (len(data[0]) * args.batch_size)))
     return total_loss / (len(data[0]) * args.batch_size)
 
 
@@ -142,9 +147,8 @@ def main():
     print_args(args)
 
     cuda = torch.cuda.is_available() and args.cuda
-    print(torch.cuda.is_available())
+    print("Found cuda: ", torch.cuda.is_available())
     device = torch.device("cpu") if not cuda else torch.device("cuda:0")
-    input(device)
     seed_everything(seed=1337, cuda=cuda)
 
     # Load dataset iterators
@@ -174,22 +178,24 @@ def main():
         embedding = nn.Embedding(len(vocab), args.emsize, padding_idx=0)
     attention_dim = args.hidden if not args.bi else 2 * args.hidden
     attention = Attention(attention_dim, attention_dim, attention_dim)
-    fc_layer_dims = [attention_dim, 6]
+    fc_layer_dims = [attention_dim, 10, 5]
+    seq_len = len(train_iter[0][0][0]) # one sentence length
+    if args.use_outputs: fc_layer_dims = [seq_len * attention_dim, 500, 250, 50, 10]
 
-    model = Vectorizer(embedding, encoder, fc_layer_dims, attention)
+    model = Vectorizer(embedding, encoder, fc_layer_dims, attention, concat_out=args.use_outputs, use_attn=args.use_attn)
     model.to(device)
 
     # Define loss and optimizer
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), args.lr, amsgrad=True)
+    optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.wdecay, amsgrad=True)
 
     # Train and validate per epoch
     try:
         best_valid_loss = None
 
         for epoch in range(1, args.epochs + 1):
-            train(model, train_iter, optimizer, criterion, args)
-            loss = evaluate(model, val_iter, criterion, args, type='Valid')
+            train(model, train_iter, optimizer, criterion, device, args)
+            loss = evaluate(model, val_iter, criterion, device, args, type='Valid')
 
             if not best_valid_loss or loss < best_valid_loss:
                 best_valid_loss = loss
@@ -197,17 +203,17 @@ def main():
     except KeyboardInterrupt:
         print("[Ctrl+C] Training stopped!")
 
-    loss = evaluate(model, test_iter, criterion, args, type='Test')
-    print("Test loss: ", loss)
+    loss = evaluate(model, test_iter, criterion, device, args, type='Test')
+    print("Test loss: ", 100**2 * loss)
 
     # Save model
     torch.save(model, args.save_path)
 
     # Print some sample evaluations
-    # batch_to_print_X, batch_to_print_Y = test_iter[0]
-    # pred, _ = model(batch_to_print_X)
-    # print("Predictions: ", pred)
-    # print("Original: ", batch_to_print_Y)
+    batch_to_print_X, batch_to_print_X_lens, batch_to_print_Y = val_iter[0][0]
+    pred, _ = model(batch_to_print_X, batch_to_print_X_lens)
+    print("Predictions: ", pred)
+    print("Original: ", batch_to_print_Y)
 
 
 if __name__ == '__main__':

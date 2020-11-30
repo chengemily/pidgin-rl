@@ -126,7 +126,7 @@ if __name__ == "__main__":
     tokenizer = train_tokenizer(['../../generate-data/data/train/en.csv',
                     '../../generate-data/data/train/fr.csv'],
                     model='wp',
-                    vocab_size=150,
+                    vocab_size=120,
                     filename='wp_model.json') # c
 
 

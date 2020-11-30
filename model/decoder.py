@@ -9,35 +9,30 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.bidirectional = bidirectional
         rnn_cell = getattr(nn, rnn_type) # get constructor from torch.nn
+        self.batch_first = batch_first
         self.rnn = rnn_cell(
             embed_dim, hidden_dim, nlayers, dropout=dropout, bidirectional=bidirectional, batch_first=batch_first
         )
 
-    def forward(self, input, hidden=None):
-        return self.rnn(input, hidden)
+    def forward(self, inp, x_lengths, hidden=None):
+        # print(x_lengths)
+        # Pack padded sequence so padded items aren't shown to LSTM-- perf increase
+        # print("1st sentence:", inp[0])
+        # input()
+        total_length = inp.size()[1]
+        # print(total_length)
+        X = torch.nn.utils.rnn.pack_padded_sequence(inp, x_lengths, batch_first=self.batch_first, enforce_sorted=False)
+        # print("Packed 1st sentence:", X[0])
+        # input()
+        out, hid = self.rnn(X, hidden) # since it's packed, "hid" is the last meaningful hidden state
+        # print("Packed out: ", out[0])
+        # input()
+        # Unpack output
+        # out, out_len = torch.nn.utils.rnn.pad_packed_sequence(out, total_length=total_length, batch_first=self.batch_first, padding_value=0.0)
+        # print("Packed first sentence: ", out[0])
+        # input()
+        return out, hid
 
-
-# class LuongAttention(nn.Module):
-#     def __init__(self, hidden_dim):
-#         super(LuongAttention, self).__init__()
-#         self.hidden_dim = hidden_dim
-#         self.att_scores = None
-#
-#     def forward(self, decoder_hidden, encoder_outputs):
-#         # project decoder hidden state
-#         out = self.W(decoder_hidden)
-#
-#         # Calculate new outputs
-#         alignments = encoder_outputs.bmm(decoder_hidden.view(1, -1, 1)).squeeze(-1)
-#
-#         # Store attention scores
-#         atts = F.softmax(alignments.view(1, -1), dim=1)
-#         self.att_scores = atts
-#
-#         # Get new context vector
-#         context = torch.bmm(atts.unsqueeze(0), encoder_outputs)
-#
-#         return atts, context
 
 class Attention(nn.Module):
     def __init__(self, query_dim, key_dim, value_dim):
@@ -47,8 +42,8 @@ class Attention(nn.Module):
 
     def forward(self, query, keys, values):
         # Query = [BxQ]
-        # Keys = [BxTxK]
-        # Values = [BxTxV]
+        # Keys = [BxTxK],
+        # Values = [BxTxV], should be the outputs of the RNN
         # Outputs = a:[TxB], lin_comb:[BxV]
 
         # Here we assume q_dim == k_dim (dot product attention)
@@ -70,17 +65,17 @@ class FC(nn.Module):
     def __init__(self, layer_dims=[]):
         super(FC, self).__init__()
         layer_dims.append(2) # last output size 2 vector
-        self.layers = [nn.Linear(layer_dims[i], layer_dims[i+1]) for i in range(len(layer_dims)-1)]
+        self.layers = [nn.Linear(layer_dims[i], layer_dims[i+1]).cuda() for i in range(len(layer_dims)-1)]
 
     def forward(self, input):
         inp = input
         for layer in self.layers:
             inp = layer(inp)
-        return inp
+        return torch.tanh(inp)
 
 
 class Vectorizer(nn.Module):
-    def __init__(self, embedding, encoder, fc_layer_dims, attention):
+    def __init__(self, embedding, encoder, fc_layer_dims, attention, concat_out=False, use_attn=False):
         """
         Entire str -> vector model.
         :param embedding: embedder class, where embedding(input) returns a vector
@@ -92,28 +87,34 @@ class Vectorizer(nn.Module):
         self.embedding = embedding
         self.encoder = encoder
         self.attention = attention
+        self.concat_out = concat_out
+        self.use_attn = use_attn
         self.fc = FC(fc_layer_dims)
 
         param_size = sum([p.nelement() for p in self.parameters()])
         print('Total param size: {}'.format(param_size))
 
-    def forward(self, input):
-        outputs, hidden = self.encoder(self.embedding(input))
-
-        # concatenate outputs vectors
-        # outputs = outputs.reshape(outputs.size()[0], outputs.size()[1] * outputs.size()[2])
+    def forward(self, input, x_lengths):
+        outputs, hidden = self.encoder(self.embedding(input), x_lengths)
 
         if isinstance(hidden, tuple): # LSTM
           hidden = hidden[1] # take the cell state
-
         if self.encoder.bidirectional: # need to concat the last 2 hidden layers
           hidden = torch.cat([hidden[-1], hidden[-2]], dim=1)
         else:
           hidden = hidden[-1]
 
+        # fc_input = torch.cat([hidden, outputs], dim=1)
         energy=None
-        # output_vec = self.fc(outputs)
-        # energy, linear_combination = self.attention(hidden, outputs, outputs)
-        # output_vec = self.fc(linear_combination)
-        output_vec = self.fc(hidden)
+        if self.concat_out:
+            # concatenate output vectors
+            outputs = outputs.reshape(outputs.size()[0], outputs.size()[1] * outputs.size()[2])
+            output_vec = self.fc(outputs)
+        elif self.use_attn:
+            energy, linear_combination = self.attention(hidden, outputs, outputs)
+            output_vec = self.fc(linear_combination)
+        else:
+            output_vec = self.fc(hidden)
+
+        # Activation
         return output_vec, energy
