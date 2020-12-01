@@ -17,9 +17,9 @@ from decoder import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch RNN Classifier w/ attention')
-    parser.add_argument('--save_path', type=str, default='saved_models/fr_decoder/model_large.pt')
-    parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/fr.csv')
-    parser.add_argument('--lang', type=str, default='fr')
+    parser.add_argument('--save_path', type=str, default='saved_models/en_decoder/model_large.pt')
+    parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/en.csv')
+    parser.add_argument('--lang', type=str, default='en')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
                         help='Embeddings path')
     parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',

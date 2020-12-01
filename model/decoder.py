@@ -28,7 +28,7 @@ class Encoder(nn.Module):
         # print("Packed out: ", out[0])
         # input()
         # Unpack output
-        # out, out_len = torch.nn.utils.rnn.pad_packed_sequence(out, total_length=total_length, batch_first=self.batch_first, padding_value=0.0)
+        out, out_len = torch.nn.utils.rnn.pad_packed_sequence(out, total_length=total_length, batch_first=self.batch_first, padding_value=0.0)
         # print("Packed first sentence: ", out[0])
         # input()
         return out, hid
