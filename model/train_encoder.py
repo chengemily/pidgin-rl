@@ -221,8 +221,8 @@ def main():
     #     print(f'initialize new embedding: {len(vocab)}')
     #     embedding = nn.Embedding(len(vocab), args.emsize, padding_idx=0)
     embedding = nn.Embedding(args.emsize, args.hidden)  # 1st param - size of vocab, 2nd param - size of embedding vector
-    # embedding.to(device) # TODO - double check that I need to do this
-    
+    embedding.to(device) # TODO - double check that I need to do this
+
     # Define model pipeline
     # FCL
     fc_layer_dims = [args.hidden] #output of FC should be h0, first hidden input
