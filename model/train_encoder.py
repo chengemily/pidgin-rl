@@ -80,16 +80,16 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
 
     for batch_num, batch in enumerate(data[0]):
         # x is coordinate, y is output indices
-        print(f'batch size: {len(batch)}')
+        # print(f'batch size: {len(batch)}')
 
         x = data[2][batch_num].float().to(device) # make the coordinates the predictors x
         y = batch.to(device) # label (indices) is the word embeddings
 
-        print(f'initial y:{y}')
+        # print(f'initial y:{y}')
 
         # Forward pass
-        print(f'initial x shape : {x.size()}')
-        print(f'initial x  : {x}')
+        # print(f'initial x shape : {x.size()}')
+        # print(f'initial x  : {x}')
         with torch.autograd.set_detect_anomaly(True):
             init_hidden = fcl(x).unsqueeze(0).to(device)  # hidden dim is (num_layers, batch, hidden_size)
 
@@ -101,22 +101,21 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
             decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long).to(device) #init starting tokens, long is the same as ints, which are needed for embedding layer
             decoder_hidden = init_hidden
 
-            if isinstance(decoder_hidden, tuple):
-                print(f'decoder hidde: size: {decoder_hidden[0].size()}')
-            else: print(f'decoder hidden size: {decoder_hidden.size()}')
+            # if isinstance(decoder_hidden, tuple):
+            #     print(f'decoder hidde: size: {decoder_hidden[0].size()}')
+            # else: print(f'decoder hidden size: {decoder_hidden.size()}')
 
 
             # run batch through rnn
             for di in range(1, target_length-1): # start with 1 to predict first non-cls word
-                print(f'rnn loop {di}, before self.decoder')
+                # print(f'rnn loop {di}, before self.decoder')
                 decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden) #TODO - handle LSTMs here too
-                print(f'rnn loop {di}, after self.decoder')
-
-                print(f'decoder output: {decoder_output}')
-                print(f'decoder output size: {decoder_output.size()}')
-                print(f'y: {y[:, di]}')
-                print(f'y size: {y[:, di].size()}')
-
+                # print(f'rnn loop {di}, after self.decoder')
+                # 
+                # print(f'decoder output: {decoder_output}')
+                # print(f'decoder output size: {decoder_output.size()}')
+                # print(f'y: {y[:, di]}')
+                # print(f'y size: {y[:, di].size()}')
 
                 # take NLL loss
                 pred = decoder_output.float().squeeze()
@@ -143,27 +142,49 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
     return loss / (args.batch_size * len(data[0]))
 
 
-def evaluate_encoder(model, data, criterion, args, type='Valid'):
+def evaluate_encoder(fcl, decoder, data, criterion, target_length, args, type='Valid'):
     model.eval()
     t = time.time()
     total_loss = 0
     with torch.no_grad():
-        for batch_num, batch in enumerate(data):
+        for batch_num, batch in enumerate(data[0]):
 
-            # again, switching x and y here compared to decoder
-            x = data[1][batch_num]
-            y = batch
+            x = data[2][batch_num].float().to(device)
+            y = batch.to(device)
 
-            pred = model(x)
-            total_loss += float(criterion(pred, y))
+            init_hidden = fcl(x).unsqueeze(0).to(device)  # hidden dim is (num_layers, batch, hidden_size)
+
+            if args.model == 'LSTM':
+                init_hidden = (init_hidden, init_hidden)
+
+            # init decoder input and hidden
+            decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long).to(device) #init starting tokens, long is the same as ints, which are needed for embedding layer
+            decoder_hidden = init_hidden
+
+            # run batch through rnn
+            for di in range(1, target_length-1): # start with 1 to predict first non-cls word
+                decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden) #TODO - handle LSTMs here too
+
+                # take NLL loss
+                pred = decoder_output.float().squeeze()
+                target = y[:,di]
+                total_loss += criterion(pred, target) # Make pred [batch, embed] and target [batch,]
+
+                # get top index from softmax of previous layer
+                topv, topi = decoder_output.topk(1) # taking argmax
+                decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
+
+
             print("[Batch]: {}/{} in {:.5f} seconds".format(
                 batch_num, len(data), time.time() - t), end='\r', flush=True)
             t = time.time()
 
+
     print()
     print("[{} loss]: {:.5f}".format(type, total_loss / len(data)))
-    print(attn)
     return total_loss / (len(data[0]) * args.batch_size)
+
+
 
 
 def load_pretrained_vectors(vectors):

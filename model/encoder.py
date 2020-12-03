@@ -45,18 +45,18 @@ class Decoder(nn.Module):
             h0 = (h0, h0)
 
         output = self.embedding(input).view(-1, 1, self.hidden_dim) # TODO - added a third dimension using unsqueeze, check later if errors
-        print(f'embedded input: {output.shape}')
+        # print(f'embedded input: {output.shape}')
         output = self.dropout(output)
         
         # output = F.relu(output)
         
-        print(f'output shape: {output.size()}')
+        # print(f'output shape: {output.size()}')
         
         if isinstance(h0, tuple):
-            print(f'hidden shape: {h0[0].size()}')
-        else: print(f'hidden shape: {h0.size()}')
+            # print(f'hidden shape: {h0[0].size()}')
+        # else: print(f'hidden shape: {h0.size()}')
 
-        print(f'started rnn')
+        # print(f'started rnn')
         output, hidden = self.rnn(output, h0) #TODO - make sure h0 is a tuple if using LSTM, one val if gru
         print('finished rnn')
 
@@ -78,7 +78,7 @@ class FC_Encoder(nn.Module):
     def __init__(self, layer_dims=[]):
         super(FC_Encoder, self).__init__()
         layer_dims = [2] + layer_dims # input is size 2 vector
-        print(f'fcl layer dims : {layer_dims}')
+        # print(f'fcl layer dims : {layer_dims}')
         self.layers =  [nn.Linear(layer_dims[i], layer_dims[i+1]).cuda() for i in range(len(layer_dims)-1)]
         print(self.layers)
         # TODO - add activation functions between layers?
@@ -87,7 +87,7 @@ class FC_Encoder(nn.Module):
         inp = input
         for layer in self.layers:
             inp = layer(inp)
-            print(f'input size: {inp.size()}')
+            # print(f'input size: {inp.size()}')
         return inp
 
 
