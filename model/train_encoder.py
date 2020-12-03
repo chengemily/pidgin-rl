@@ -20,7 +20,7 @@ def make_parser():
     parser.add_argument('--model', type=str, default='LSTM',
                         help='type of recurrent net [LSTM, GRU]')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
-                        help='Embeddings path')
+            help='Embeddings path')
     parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
                         help='Embeddings path')
     parser.add_argument('--use_pretrained', action='store_true')
@@ -91,14 +91,14 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
         print(f'initial x shape : {x.size()}')
         print(f'initial x  : {x}')
         with torch.autograd.set_detect_anomaly(True):
-            init_hidden = fcl(x).unsqueeze(0)  # hidden dim is (num_layers, batch, hidden_size)
+            init_hidden = fcl(x).unsqueeze(0).to(device)  # hidden dim is (num_layers, batch, hidden_size)
 
             if args.model == 'LSTM':
                 init_hidden = (init_hidden, init_hidden)
             # print(f'x after fcl, hidden batch : {init_hidden}')
 
             # init decoder input and hidden
-            decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long) #init starting tokens, long is the same as ints, which are needed for embedding layer
+            decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long).to(device) #init starting tokens, long is the same as ints, which are needed for embedding layer
             decoder_hidden = init_hidden
 
             if isinstance(decoder_hidden, tuple):
@@ -129,9 +129,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
 
 
             print('FINISHED THE DECODER LOOP')
-            # if batch_num == 0: loss.backward(retain_graph=True)
-            # else: loss.backward()
-            loss.backward()
+            loss.backward(retain_graph=True)
 
             torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
             decoder_optimizer.step()

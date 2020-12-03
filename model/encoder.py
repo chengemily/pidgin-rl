@@ -47,10 +47,14 @@ class Decoder(nn.Module):
         output = self.embedding(input).view(-1, 1, self.hidden_dim) # TODO - added a third dimension using unsqueeze, check later if errors
         print(f'embedded input: {output.shape}')
         output = self.dropout(output)
-
+        
         # output = F.relu(output)
+        
         print(f'output shape: {output.size()}')
-        print(f'hidden shape: {h0.size()}')
+        
+        if isinstance(h0, tuple):
+            print(f'hidden shape: {h0[0].size()}')
+        else: print(f'hidden shape: {h0.size()}')
 
         print(f'started rnn')
         output, hidden = self.rnn(output, h0) #TODO - make sure h0 is a tuple if using LSTM, one val if gru
