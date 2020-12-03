@@ -63,7 +63,7 @@ def seed_everything(seed, cuda=False):
 SOS_token = 1
 EOS_token = 2
 
-def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_length, args):
+def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_length, device, args):
     """
     :param model: (nn.Module) model
     :param data: iterator of data
@@ -82,8 +82,8 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
         # x is coordinate, y is output indices
         print(f'batch size: {len(batch)}')
 
-        x = data[2][batch_num].float() # make the coordinates the predictors x
-        y = batch # label (indices) is the word embeddings
+        x = data[2][batch_num].float().to(device) # make the coordinates the predictors x
+        y = batch.to(device) # label (indices) is the word embeddings
 
         print(f'initial y:{y}')
 
@@ -145,7 +145,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
     return loss / (args.batch_size * len(data[0]))
 
 
-def evaluate_encoder(model, data, criterion, type='Valid'):
+def evaluate_encoder(model, data, criterion, criterion, args, type='Valid'):
     model.eval()
     t = time.time()
     total_loss = 0
