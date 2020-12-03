@@ -146,7 +146,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
     return loss / (args.batch_size * len(data[0]))
 
 
-def evaluate_encoder(model, data, criterion, criterion, args, type='Valid'):
+def evaluate_encoder(model, data, criterion, args, type='Valid'):
     model.eval()
     t = time.time()
     total_loss = 0
@@ -250,7 +250,7 @@ def main():
 
         for epoch in range(1, args.epochs + 1):
             print(f'Epoch: {epoch}')
-            train_encoder(fcl, decoder, train_iter, decoder_optimizer, criterion, target_length, args)
+            train_encoder(fcl, decoder, train_iter, decoder_optimizer, criterion, target_length, device, args)
             loss = evaluate_encoder(model, val_iter, criterion)
 
             if not best_valid_loss or loss < best_valid_loss:
