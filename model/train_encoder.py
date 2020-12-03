@@ -75,59 +75,73 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
     fcl.train()
     decoder.train()
     t = time.time()
-    total_loss = 0
 
-    loss = 0
-    for batch_num, batch in enumerate(data):
+    loss = 0 # is this redundant with total_loss defined? -> this one will store criterion, total_loss stores cumulative loss
+
+    for batch_num, batch in enumerate(data[0]):
         # x is coordinate, y is output indices
-        x = data[1][batch_num].float()  #casting as float so it works with FCL
-        y = data[0][batch_num] # reversing x and y here, x is position, y is str
+        print(f'batch size: {len(batch)}')
+
+        x = data[2][batch_num].float() # make the coordinates the predictors x
+        y = batch # label (indices) is the word embeddings
+
+        print(f'initial y:{y}')
 
         # Forward pass
-        # print(f'initial x : {x}')
-        init_hidden = fcl(x).unsqueeze(0)  # hidden dim is (num_layers, batch, hidden_size)
-        if args.model == 'LSTM':
-            init_hidden = (init_hidden, init_hidden)
-        # print(f'x after fcl, hidden batch : {init_hidden}')
+        print(f'initial x shape : {x.size()}')
+        print(f'initial x  : {x}')
+        with torch.autograd.set_detect_anomaly(True):
+            init_hidden = fcl(x).unsqueeze(0)  # hidden dim is (num_layers, batch, hidden_size)
+            if args.model == 'LSTM':
+                init_hidden = (init_hidden, init_hidden)
+            # print(f'x after fcl, hidden batch : {init_hidden}')
 
-        # init decoder input and hidden
-        decoder_input = torch.ones(args.batch_size, dtype=torch.long) #init starting tokens, long is the same as ints, which are needed for embedding layer
-        decoder_hidden = init_hidden
+            # init decoder input and hidden
+            decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long) #init starting tokens, long is the same as ints, which are needed for embedding layer
+            decoder_hidden = init_hidden
 
-        print(f'decoder: {decoder}')
-        print(f'decoder input size: {decoder_input.size()}')
-        print(f'decoder hidden size: {decoder_hidden.size()}')
+            print(f'decoder: {decoder}')
+            print(f'decoder input size: {decoder_input.size()}')
+            print(f'decoder hidden size: {decoder_hidden.size()}')
 
 
-        # run batch through rnn
-        for di in range(1, target_length):
-            print(f'rnn loop {di}, before self.decoder')
-            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden) #TODO - handle LSTMs here too
-            print(f'rnn loop {di}, after self.decoder')
+            # run batch through rnn
+            for di in range(1, target_length-1): # start with 1 to predict first non-cls word
+                print(f'rnn loop {di}, before self.decoder')
+                decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden) #TODO - handle LSTMs here too
+                print(f'rnn loop {di}, after self.decoder')
 
-            # get top index from softmax of previous layer
-            topv, topi = decoder_output.topk(1)
-            # decoder_input = topi.squeeze().detach()
-            decoder_input = topi.detach()
-            loss += criterion(decoder_output.float(), y[:,di]) #cast as float so mse comp works
-            # if top_i.item() == 2: # if end token
-            #     break
+                print(f'decoder output: {decoder_output}')
+                print(f'decoder output size: {decoder_output.size()}')
+                print(f'y: {y[:, di]}')
+                print(f'y size: {y[:, di].size()}')
 
-        # Compute loss
-        # loss = criterion(pred, y) # make sure y is off
-        total_loss += loss
-        loss.requires_grad = True
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
-        decoder_optimizer.step()
 
-        print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
-            batch_num, len(data), time.time() - t, total_loss / (batch_num * len(batch))), end='\r', flush=True)
-        t = time.time()
+                # take NLL loss on
+                pred = decoder_output.float().squeeze()
+                target = y[:,di]
+                loss += criterion(pred, target) # Make pred [batch, embed] and target [batch,]
+
+                # get top index from softmax of previous layer
+                topv, topi = decoder_output.topk(1) # taking argmax
+                decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
+
+
+            print('FINISHED THE DECODER LOOP')
+            # if batch_num == 0: loss.backward(retain_graph=True)
+            # else: loss.backward()
+            loss.backward()
+
+            torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
+            decoder_optimizer.step()
+
+            print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
+                batch_num, len(data), time.time() - t, loss / (batch_num * len(batch))), end='\r', flush=True)
+            t = time.time()
 
     print()
-    print("[Loss]: {:.5f}".format(total_loss / len(data)))
-    return total_loss / (args.batch_size * len(data[0]))
+    print("[Loss]: {:.5f}".format(loss / len(data)))
+    return loss / (args.batch_size * len(data[0]))
 
 
 def evaluate_encoder(model, data, criterion, type='Valid'):
@@ -188,7 +202,8 @@ def main():
         val_iter = test_iter
 
     # get length of a sentence
-    target_length = train_iter[0][0][0].shape[0] # TODO - double check this is the right length
+    target_length = len(train_iter[0][0][0]) # TODO - double check this is the right length
+    print(f'target length: {target_length}')
 
     # get size of vocab
     vocab = load_json(args.vocab_path)
@@ -213,14 +228,13 @@ def main():
 
     # RNN
     decoder = Decoder(output_dims, args.hidden, rnn_type=args.model, nlayers=args.nlayers,
-                      dropout=args.drop)
-
+                      dropout=args.drop) # TODO - more thoroughly check this
 
     fcl.to(device)
     decoder.to(device)
 
     # Define loss and optimizer
-    criterion = nn.MSELoss()
+    criterion = nn.NLLLoss()
 
     # fcl_optimizer = torch.optim.Adam(fcl.parameters(), args.lr, amsgrad=True)
     decoder_optimizer = torch.optim.Adam(decoder.parameters(), args.lr, amsgrad=True)

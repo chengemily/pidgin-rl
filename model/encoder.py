@@ -59,7 +59,6 @@ class Decoder(nn.Module):
         # pass output through fcl and softmax
         output = self.out(output) # take output[0]?
         output = self.softmax(output) #TODO - why output[0]?
-        _, output = output.topk(1) # maybe squeeze?    # get top index (i.e. argmax)
         return output, hidden
 
     def init_output(self):
