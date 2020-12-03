@@ -101,10 +101,9 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
             decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long) #init starting tokens, long is the same as ints, which are needed for embedding layer
             decoder_hidden = init_hidden
 
-            print(f'decoder: {decoder}')
-            print(f'decoder input size: {decoder_input.size()}')
-            if isin
-            print(f'decoder hidden size: {decoder_hidden.size()}')
+            if isinstance(decoder_hidden, tuple):
+                print(f'decoder hidde: size: {decoder_hidden[0].size()}')
+            else: print(f'decoder hidden size: {decoder_hidden.size()}')
 
 
             # run batch through rnn
