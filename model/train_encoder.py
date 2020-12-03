@@ -21,7 +21,7 @@ def make_parser():
                         help='type of recurrent net [LSTM, GRU]')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
                         help='Embeddings path')
-    parser.add_argument('--vocab_path', type=str, default='../tokenizerls/data/vocab.json',
+    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
                         help='Embeddings path')
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=300,
@@ -103,7 +103,9 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
 
             print(f'decoder: {decoder}')
             print(f'decoder input size: {decoder_input.size()}')
-            print(f'decoder hidden size: {decoder_hidden.size()}')
+            if isinstance(decoder_hidden, tuple):
+                print(f'decoder hidde: size: {decoder_hidden[0].size()}')
+            else: print(f'decoder hidden size: {decoder_hidden.size()}')
 
 
             # run batch through rnn
