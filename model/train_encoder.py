@@ -21,7 +21,7 @@ def make_parser():
                         help='type of recurrent net [LSTM, GRU]')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
                         help='Embeddings path')
-    parser.add_argument('--vocab_path', type=str, default='../tokenizerls/data/vocab.json',
+    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
                         help='Embeddings path')
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=300,
@@ -103,6 +103,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
 
             print(f'decoder: {decoder}')
             print(f'decoder input size: {decoder_input.size()}')
+            if isin
             print(f'decoder hidden size: {decoder_hidden.size()}')
 
 
@@ -220,17 +221,19 @@ def main():
     # else:
     #     print(f'initialize new embedding: {len(vocab)}')
     #     embedding = nn.Embedding(len(vocab), args.emsize, padding_idx=0)
-    #
-
+    embedding = nn.Embedding(args.emsize, args.hidden)  # 1st param - size of vocab, 2nd param - size of embedding vector
+    # embedding.to(device) # TODO - double check that I need to do this
+    
     # Define model pipeline
     # FCL
     fc_layer_dims = [args.hidden] #output of FC should be h0, first hidden input
     fcl = FC_Encoder(layer_dims=fc_layer_dims)
 
     # RNN
-    decoder = Decoder(output_dims, args.hidden, rnn_type=args.model, nlayers=args.nlayers,
+    decoder = Decoder(output_dims, args.hidden, embedding, rnn_type=args.model, nlayers=args.nlayers,
                       dropout=args.drop) # TODO - more thoroughly check this
 
+    # put all models on GPU
     fcl.to(device)
     decoder.to(device)
 
