@@ -92,6 +92,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
         print(f'initial x  : {x}')
         with torch.autograd.set_detect_anomaly(True):
             init_hidden = fcl(x).unsqueeze(0)  # hidden dim is (num_layers, batch, hidden_size)
+
             if args.model == 'LSTM':
                 init_hidden = (init_hidden, init_hidden)
             # print(f'x after fcl, hidden batch : {init_hidden}')
@@ -117,7 +118,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
                 print(f'y size: {y[:, di].size()}')
 
 
-                # take NLL loss on
+                # take NLL loss
                 pred = decoder_output.float().squeeze()
                 target = y[:,di]
                 loss += criterion(pred, target) # Make pred [batch, embed] and target [batch,]

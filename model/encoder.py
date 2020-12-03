@@ -75,7 +75,7 @@ class FC_Encoder(nn.Module):
         super(FC_Encoder, self).__init__()
         layer_dims = [2] + layer_dims # input is size 2 vector
         print(f'fcl layer dims : {layer_dims}')
-        self.layers =  [nn.Linear(layer_dims[i], layer_dims[i+1]) for i in range(len(layer_dims)-1)]
+        self.layers =  [nn.Linear(layer_dims[i], layer_dims[i+1]).cuda() for i in range(len(layer_dims)-1)]
         print(self.layers)
         # TODO - add activation functions between layers?
 
