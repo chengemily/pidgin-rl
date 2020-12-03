@@ -127,7 +127,6 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
                 decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
 
 
-            print('FINISHED THE DECODER LOOP')
             loss.backward(retain_graph=True)
 
             torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)

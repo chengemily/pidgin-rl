@@ -52,13 +52,12 @@ class Decoder(nn.Module):
         
         # print(f'output shape: {output.size()}')
         
-        if isinstance(h0, tuple):
+        # if isinstance(h0, tuple):
             # print(f'hidden shape: {h0[0].size()}')
         # else: print(f'hidden shape: {h0.size()}')
 
         # print(f'started rnn')
         output, hidden = self.rnn(output, h0) #TODO - make sure h0 is a tuple if using LSTM, one val if gru
-        print('finished rnn')
 
         # pass output through fcl and softmax
         output = self.out(output) # take output[0]?
