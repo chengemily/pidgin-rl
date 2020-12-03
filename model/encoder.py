@@ -14,11 +14,11 @@ word_to_vec = {'<cls>': [-3.6961872577667236, -4.380651950836182, 0.837680160999
 
 
 class Decoder(nn.Module):
-    def __init__(self, output_dim, hidden_dim, rnn_type='GRU', nlayers=1, dropout=0.):
+    def __init__(self, output_dim, hidden_dim, embedding, rnn_type='GRU', nlayers=1, dropout=0.):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
-        self.embedding = nn.Embedding(self.output_dim, hidden_dim) # 1st param - size of vocab, 2nd param - size of embedding vector
+        self.embedding = embedding
         self.dropout = nn.Dropout(dropout)
 
         # Define recurrent unit
