@@ -85,11 +85,11 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
         x = data[2][batch_num].float().to(device) # make the coordinates the predictors x
         y = batch.to(device) # label (indices) is the word embeddings
 
-        # print(f'initial y:{y}')
-
+        print(f'initial y:{y}')
+        print(f'initial y shape : {y.size()}')
         # Forward pass
-        # print(f'initial x shape : {x.size()}')
-        # print(f'initial x  : {x}')
+        print(f'initial x shape : {x.size()}')
+        print(f'initial x  : {x}')
         with torch.autograd.set_detect_anomaly(True):
             init_hidden = fcl(x).unsqueeze(0).to(device)  # hidden dim is (num_layers, batch, hidden_size)
 
