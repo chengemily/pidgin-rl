@@ -82,72 +82,72 @@ class FC_Encoder(nn.Module):
         return inp
 
 
-
-class Sequence_Generator(nn.Module):
-    def __init__(self, embedding, decoder, fc_layer_dims, hidden_dim, target_length, output_dims, rnn_type='GRU'):
-        """
-        Entire vector -> str model (the 'encoder' in our problem setup)
-        :param embedding: embedder class, where embedding(input) returns a vector
-        :param decoder: (nn.Module)
-        :param fc_layer_dims: dimensions of fully connected layers, EXCLUDING hidden dim
-        :param target_length: the maximum length a sequence can be (max seq length)
-        """
-        super(Sequence_Generator, self).__init__()
-        self.target_length = target_length
-        self.output_dims = output_dims
-        self.embedding = embedding
-        self.decoder = decoder
-        self.fc = FC_Encoder(fc_layer_dims)
-        self.rnn_type = rnn_type
-        # self.hidden_dim = hidden_dim
-        #
-        # param_size = sum([p.nelement() for p in self.parameters()]) # TODO - not sure where self.parameters is coming from
-        # print('Total param size: {}'.format(param_size))
-
-    def forward(self, input): # Input should be [x,y] value
-        '''
-        :param input: should be a [x,y] pair
-        :return: output_tensor: tensor of word predictions in indexed form
-        '''
-        # get initial hidden and input
-        print(f'input to seq generator: {input}')
-        print(f'fully connected: {self.fc}')
-        # pass through FCL
-        init_hidden = self.fc(input)
-
-        # if lstm, make sure to have both c and h as a tuple for the decoder
-        if self.rnn_type == 'LSTM':
-            init_hidden = (init_hidden, init_hidden)
-        print(f'init hidden layer: {init_hidden}\nshape: {init_hidden.shape}')
-
-        # initialize tensor of predictions (prediction for only one sentence)
-        output_tensor = torch.zeros(self.target_length)
-        output_tensor[0] = 1 # set first output to be <cls>
-
-        # init decoder input and hidden
-        decoder_input = None
-        decoder_hidden = init_hidden
-
-        print(f'starting rnn')
-        # RNN loop
-        for di in range(1, self.target_length):
-            print(f'rnn loop {di}, before self.decoder')
-            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden) #TODO - handle LSTMs here too
-            print(f'rnn loop {di}, after self.decoder')
-
-            # get top index from softmax of previous layer
-            topv, topi = decoder_output.topk(1)
-            top_ix = topi.squeeze().detach()
-            output_tensor[di] = top_ix
-
-            decoder_input = top_ix
-            if top_ix.item() == 2: # if end token
-                break
-
-        return output_tensor
-
-
-
+#
+# class Sequence_Generator(nn.Module):
+#     def __init__(self, embedding, decoder, fc_layer_dims, hidden_dim, target_length, output_dims, rnn_type='GRU'):
+#         """
+#         Entire vector -> str model (the 'encoder' in our problem setup)
+#         :param embedding: embedder class, where embedding(input) returns a vector
+#         :param decoder: (nn.Module)
+#         :param fc_layer_dims: dimensions of fully connected layers, EXCLUDING hidden dim
+#         :param target_length: the maximum length a sequence can be (max seq length)
+#         """
+#         super(Sequence_Generator, self).__init__()
+#         self.target_length = target_length
+#         self.output_dims = output_dims
+#         self.embedding = embedding
+#         self.decoder = decoder
+#         self.fc = FC_Encoder(fc_layer_dims)
+#         self.rnn_type = rnn_type
+#         # self.hidden_dim = hidden_dim
+#         #
+#         # param_size = sum([p.nelement() for p in self.parameters()]) # TODO - not sure where self.parameters is coming from
+#         # print('Total param size: {}'.format(param_size))
+#
+#     def forward(self, input): # Input should be [x,y] value
+#         '''
+#         :param input: should be a [x,y] pair
+#         :return: output_tensor: tensor of word predictions in indexed form
+#         '''
+#         # get initial hidden and input
+#         print(f'input to seq generator: {input}')
+#         print(f'fully connected: {self.fc}')
+#         # pass through FCL
+#         init_hidden = self.fc(input)
+#
+#         # if lstm, make sure to have both c and h as a tuple for the decoder
+#         if self.rnn_type == 'LSTM':
+#             init_hidden = (init_hidden, init_hidden)
+#         print(f'init hidden layer: {init_hidden}\nshape: {init_hidden.shape}')
+#
+#         # initialize tensor of predictions (prediction for only one sentence)
+#         output_tensor = torch.zeros(self.target_length)
+#         output_tensor[0] = 1 # set first output to be <cls>
+#
+#         # init decoder input and hidden
+#         decoder_input = None
+#         decoder_hidden = init_hidden
+#
+#         print(f'starting rnn')
+#         # RNN loop
+#         for di in range(1, self.target_length):
+#             print(f'rnn loop {di}, before self.decoder')
+#             decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden) #TODO - handle LSTMs here too
+#             print(f'rnn loop {di}, after self.decoder')
+#
+#             # get top index from softmax of previous layer
+#             topv, topi = decoder_output.topk(1)
+#             top_ix = topi.squeeze().detach()
+#             output_tensor[di] = top_ix
+#
+#             decoder_input = top_ix
+#             if top_ix.item() == 2: # if end token
+#                 break
+#
+#         return output_tensor
+#
+#
+#
 
 # QUESTION - do we need to modify attention for the decoder?
 # class Attention(nn.Module):
