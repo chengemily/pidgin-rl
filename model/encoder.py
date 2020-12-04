@@ -58,7 +58,7 @@ class Decoder(nn.Module):
         # pass output through fcl and softmax
         output = self.out(output) # take output[0]?
         # print(f'after self.out : {output}')
-        output = self.softmax(output).float.squeeze() #TODO - why output[0]?
+        output = self.softmax(output).float().squeeze() #TODO - why output[0]?
         # print(f'after sotmax : {output}')
         return output, hidden
 

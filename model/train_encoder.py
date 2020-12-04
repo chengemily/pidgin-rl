@@ -81,6 +81,8 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
     loss = 0 # is this redundant with total_loss defined? -> this one will store criterion, total_loss stores cumulative loss
 
     for batch_num, batch in enumerate(data[0]):
+        fcl.zero_grad()
+        decoder.zero_grad()
         # x is coordinate, y is output indices
         # print(f'batch size: {len(batch)}')
 
@@ -128,6 +130,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
                 decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
 
                 # take NLL loss
+
                 loss += criterion(decoder_output, y[:, di])  # Make pred [batch, embed] and target [batch,]
                 # print(f'decoder input: {decoder_input}')
                 # print(f'decoder input size: {decoder_input.size()}')
