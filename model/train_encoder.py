@@ -75,6 +75,7 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
     fcl.train()
     decoder.train()
     t = time.time()
+    decoder_optimizer.zero_grad()
 
     loss = 0 # is this redundant with total_loss defined? -> this one will store criterion, total_loss stores cumulative loss
 
@@ -122,18 +123,17 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
                 # print(f'y: {y[:, di]}')
                 # print(f'y size: {y[:, di].size()}')
 
-                # take NLL loss
-                pred = decoder_output.float().squeeze()
-                target = y[:,di]
-                loss += criterion(pred, target) # Make pred [batch, embed] and target [batch,]
                 # print(f'loss = {loss}')
                 # get top index from softmax of previous layer
                 topv, topi = decoder_output.topk(1) # taking argmax
                 decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
+
+                # take NLL loss
+                loss += criterion(decoder_output, y[:, di])  # Make pred [batch, embed] and target [batch,]
                 # print(f'decoder input: {decoder_input}')
                 # print(f'decoder input size: {decoder_input.size()}')
 
-            loss.backward(retain_graph=True)
+            loss.backward()
 
             torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
             decoder_optimizer.step()

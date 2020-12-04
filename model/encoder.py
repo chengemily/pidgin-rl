@@ -66,7 +66,7 @@ class Decoder(nn.Module):
         # print(f'after self.out : {output}')
         output = self.softmax(output) #TODO - why output[0]?
         # print(f'after sotmax : {output}')
-        return output, hidden
+        return output.float().squeeze(), hidden
 
     def init_output(self):
         # Returns the vector equivalent of the cls token, one-hot-encoded
