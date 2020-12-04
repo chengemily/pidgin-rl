@@ -35,14 +35,8 @@ class Decoder(nn.Module):
         self.softmax = nn.LogSoftmax(dim=0) # dim=1 means take softmax across first dimension
         
 
-    def forward(self, input=None, h0=None):
-        if input == None:
-            input = self.init_output() # the
-
+    def forward(self, input, h0):
         # if LSTM, change hidden state
-  
-        if self.rnn_type == 'LSTM' and not isinstance(h0, tuple):
-            h0 = (h0, h0)
 
         output = self.embedding(input).view(-1, 1, self.hidden_dim) # TODO - added a third dimension using unsqueeze, check later if errors
         # print(f'embedded input: {output.shape}')
@@ -64,16 +58,10 @@ class Decoder(nn.Module):
         # pass output through fcl and softmax
         output = self.out(output) # take output[0]?
         # print(f'after self.out : {output}')
-        output = self.softmax(output) #TODO - why output[0]?
+        output = self.softmax(output).float.squeeze() #TODO - why output[0]?
         # print(f'after sotmax : {output}')
-        return output.float().squeeze(), hidden
+        return output, hidden
 
-    def init_output(self):
-        # Returns the vector equivalent of the cls token, one-hot-encoded
-        # init_output = torch.zeros(1,1,self.output_dim)
-        # init_output[0][0][1] = 1 # the <cls> token
-        # return init_output
-        return torch.tensor(1)
 
 
 
