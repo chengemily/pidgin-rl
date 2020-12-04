@@ -85,13 +85,18 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
         x = data[2][batch_num].float().to(device) # make the coordinates the predictors x
         y = batch.to(device) # label (indices) is the word embeddings
 
-        print(f'initial y:{y}')
-        print(f'initial y shape : {y.size()}')
+    # print(f'initial y:{y}')
+       #  print(f'initial y shape : {y.size()}')
         # Forward pass
-        print(f'initial x shape : {x.size()}')
-        print(f'initial x  : {x}')
+        # print(f'initial x shape : {x.size()}')
+        # print(f'initial x  : {x}')
+        
+        
         with torch.autograd.set_detect_anomaly(True):
             init_hidden = fcl(x).unsqueeze(0).to(device)  # hidden dim is (num_layers, batch, hidden_size)
+            # print(f'initial hidden: {init_hidden}')
+            # print(f'initial hidden size: {init_hidden.size()}')
+            
 
             if args.model == 'LSTM':
                 init_hidden = (init_hidden, init_hidden)
@@ -121,11 +126,12 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
                 pred = decoder_output.float().squeeze()
                 target = y[:,di]
                 loss += criterion(pred, target) # Make pred [batch, embed] and target [batch,]
-
+                # print(f'loss = {loss}')
                 # get top index from softmax of previous layer
                 topv, topi = decoder_output.topk(1) # taking argmax
                 decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
-
+                # print(f'decoder input: {decoder_input}')
+                # print(f'decoder input size: {decoder_input.size()}')
 
             loss.backward(retain_graph=True)
 

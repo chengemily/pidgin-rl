@@ -32,7 +32,7 @@ class Decoder(nn.Module):
         # Define params needed for output unit
         # Define linear and softmax units, assumes input of shape (batch, sentence_length, vector_length)
         self.out = nn.Linear(hidden_dim, output_dim) # 1st param - size of input, 2nd param - size of output
-        self.softmax = nn.LogSoftmax(dim=1) # dim=1 means take softmax across first dimension
+        self.softmax = nn.LogSoftmax(dim=0) # dim=1 means take softmax across first dimension
         
 
     def forward(self, input=None, h0=None):
@@ -58,10 +58,14 @@ class Decoder(nn.Module):
 
         # print(f'started rnn')
         output, hidden = self.rnn(output, h0) #TODO - make sure h0 is a tuple if using LSTM, one val if gru
+        # print(f'output of RNN unit: {output}')
+        # print(f'hidden output of RNN unit: {hidden}')
 
         # pass output through fcl and softmax
         output = self.out(output) # take output[0]?
+        # print(f'after self.out : {output}')
         output = self.softmax(output) #TODO - why output[0]?
+        # print(f'after sotmax : {output}')
         return output, hidden
 
     def init_output(self):
@@ -79,7 +83,7 @@ class FC_Encoder(nn.Module):
         layer_dims = [2] + layer_dims # input is size 2 vector
         # print(f'fcl layer dims : {layer_dims}')
         self.layers =  [nn.Linear(layer_dims[i], layer_dims[i+1]).cuda() for i in range(len(layer_dims)-1)]
-        print(self.layers)
+        # print(self.layers)
         # TODO - add activation functions between layers?
 
     def forward(self, input):
@@ -181,6 +185,4 @@ class Sequence_Generator(nn.Module):
 #         values = values.transpose(0,1) # [TxBxV] -> [BxTxV]
 #         linear_combination = torch.bmm(energy, values).squeeze(1) #[Bx1xT]x[BxTxV] -> [BxV]
 #         return energy, linear_combination
-
-
 
