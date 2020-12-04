@@ -5,6 +5,7 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.autograd import Variable as V
 
 from datasets import *
 from decoder import *
@@ -106,11 +107,9 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
             # init decoder input and hidden
             decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long).to(device) #init starting tokens, long is the same as ints, which are needed for embedding layer
             decoder_hidden = init_hidden
-
             # if isinstance(decoder_hidden, tuple):
             #     print(f'decoder hidde: size: {decoder_hidden[0].size()}')
             # else: print(f'decoder hidden size: {decoder_hidden.size()}')
-
 
             # run batch through rnn
             for di in range(1, target_length-1): # start with 1 to predict first non-cls word
@@ -133,13 +132,13 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
                 # print(f'decoder input: {decoder_input}')
                 # print(f'decoder input size: {decoder_input.size()}')
 
-            loss.backward()
+            loss.backward(retain_graph=True)
 
             torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
             decoder_optimizer.step()
 
             print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
-                batch_num, len(data), time.time() - t, loss / (batch_num * len(batch))), end='\r', flush=True)
+                batch_num, len(data[0]), time.time() - t, loss / (batch_num * len(batch))), end='\r', flush=True)
             t = time.time()
 
     print()
