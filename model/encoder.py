@@ -19,7 +19,7 @@ class Decoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.embedding = embedding
-        self.dropout = nn.Dropout(dropout)
+        # self.dropout = nn.Dropout(dropout)
 
         # Define recurrent unit
         self.rnn_type = rnn_type
@@ -31,16 +31,18 @@ class Decoder(nn.Module):
 
         # Define params needed for output unit
         # Define linear and softmax units, assumes input of shape (batch, sentence_length, vector_length)
-        self.out = nn.Linear(hidden_dim, output_dim) # 1st param - size of input, 2nd param - size of output
+        # self.out = nn.Linear(hidden_dim, output_dim) # 1st param - size of input, 2nd param - size of output
         self.softmax = nn.LogSoftmax(dim=0) # dim=1 means take softmax across first dimension
         
 
-    def forward(self, input, h0):
+    def forward(self, inp, h0):
         # if LSTM, change hidden state
 
-        output = self.embedding(input).view(-1, 1, self.hidden_dim) # TODO - added a third dimension using unsqueeze, check later if errors
+        output = self.embedding(inp).view(-1, 1, self.hidden_dim) # TODO - added a third dimension using unsqueeze, check later if errors
+        # input(output.size())
+        # output = torch.ones([32, 1, 300], device=torch.device("cuda:0")).float()
         # print(f'embedded input: {output.shape}')
-        output = self.dropout(output)
+        # output = self.dropout(output)
         
         # output = F.relu(output)
         
@@ -56,7 +58,7 @@ class Decoder(nn.Module):
         # print(f'hidden output of RNN unit: {hidden}')
 
         # pass output through fcl and softmax
-        output = self.out(output) # take output[0]?
+        # output = self.out(output) # take output[0]?
         # print(f'after self.out : {output}')
         output = self.softmax(output).float().squeeze() #TODO - why output[0]?
         # print(f'after sotmax : {output}')

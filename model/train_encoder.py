@@ -1,4 +1,5 @@
 import argparse
+from itertools import chain
 import json
 import os, sys
 import time
@@ -45,8 +46,7 @@ def make_parser():
                         help='[USE] bidirectional encoder')
     parser.add_argument('--cuda', action='store_false',
                         help='[DONT] use CUDA')
-    parser.add_argument('--fine', action='store_true',
-                        help='use fine grained labels in SST')
+
     return parser
 
 
@@ -64,7 +64,7 @@ def seed_everything(seed, cuda=False):
 SOS_token = 1
 EOS_token = 2
 
-def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_length, device, args):
+def train_encoder(fcl, decoder, data, optimizer, criterion, target_length, device, args):
     """
     :param model: (nn.Module) model
     :param data: iterator of data
@@ -76,7 +76,6 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
     fcl.train()
     decoder.train()
     t = time.time()
-    decoder_optimizer.zero_grad()
 
     loss = 0 # is this redundant with total_loss defined? -> this one will store criterion, total_loss stores cumulative loss
 
@@ -86,9 +85,8 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
         # x is coordinate, y is output indices
         # print(f'batch size: {len(batch)}')
 
-        x = data[2][batch_num].float().to(device) # make the coordinates the predictors x
-        y = batch.to(device) # label (indices) is the word embeddings
-
+        x = data[2][batch_num].float() #.to(device) # make the coordinates the predictors x
+        y = batch #.to(device) # label (indices) is the word embeddings
     # print(f'initial y:{y}')
        #  print(f'initial y shape : {y.size()}')
         # Forward pass
@@ -97,17 +95,17 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
         
         
         with torch.autograd.set_detect_anomaly(True):
-            init_hidden = fcl(x).unsqueeze(0).to(device)  # hidden dim is (num_layers, batch, hidden_size)
+            decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long,
+                                       device=device)  # init starting tokens, long is the same as ints, which are needed for embedding layer
+            init_hidden = fcl(x).unsqueeze(0) #.to(device)  # hidden dim is (num_layers, batch, hidden_size)
             # print(f'initial hidden: {init_hidden}')
             # print(f'initial hidden size: {init_hidden.size()}')
-            
 
             if args.model == 'LSTM':
                 init_hidden = (init_hidden, init_hidden)
             # print(f'x after fcl, hidden batch : {init_hidden}')
 
             # init decoder input and hidden
-            decoder_input = torch.ones(args.batch_size, 1, dtype=torch.long).to(device) #init starting tokens, long is the same as ints, which are needed for embedding layer
             decoder_hidden = init_hidden
             # if isinstance(decoder_hidden, tuple):
             #     print(f'decoder hidde: size: {decoder_hidden[0].size()}')
@@ -123,23 +121,27 @@ def train_encoder(fcl, decoder, data, decoder_optimizer, criterion, target_lengt
                 # print(f'decoder output size: {decoder_output.size()}')
                 # print(f'y: {y[:, di]}')
                 # print(f'y size: {y[:, di].size()}')
+                # input(decoder_output.size())
 
                 # print(f'loss = {loss}')
                 # get top index from softmax of previous layer
                 topv, topi = decoder_output.topk(1) # taking argmax
                 decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
-
+                # decoder_input = torch.ones([32,1], device=device, dtype=torch.long)
+                # decoder_output = torch.ones([32, 75], device=device, dtype=torch.float)
+                # decoder_hidden = decoder_hidden.detach()
                 # take NLL loss
-
-                loss += criterion(decoder_output, y[:, di])  # Make pred [batch, embed] and target [batch,]
+                target = y[:, di]
+                loss += criterion(decoder_output, target)  # Make pred [batch, embed] and target [batch,]
                 # print(f'decoder input: {decoder_input}')
                 # print(f'decoder input size: {decoder_input.size()}')
 
+            optimizer.zero_grad()
             loss.backward(retain_graph=True)
-
-            torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
-            decoder_optimizer.step()
-
+            # print('loss backward: ', time.time() - t1)
+            # torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
+            optimizer.step()
+            # print('optimizer step: ', time.time() - t1)
             print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
                 batch_num, len(data[0]), time.time() - t, loss / (batch_num * len(batch))), end='\r', flush=True)
             t = time.time()
@@ -247,7 +249,6 @@ def main():
     #     print(f'initialize new embedding: {len(vocab)}')
     #     embedding = nn.Embedding(len(vocab), args.emsize, padding_idx=0)
     embedding = nn.Embedding(args.emsize, args.hidden)  # 1st param - size of vocab, 2nd param - size of embedding vector
-    embedding.to(device) # TODO - double check that I need to do this
 
     # Define model pipeline
     # FCL
@@ -266,7 +267,7 @@ def main():
     criterion = nn.NLLLoss()
 
     # fcl_optimizer = torch.optim.Adam(fcl.parameters(), args.lr, amsgrad=True)
-    decoder_optimizer = torch.optim.Adam(decoder.parameters(), args.lr, amsgrad=True)
+    optimizer = torch.optim.Adam(chain(fcl.parameters(), decoder.parameters()), args.lr, amsgrad=True)
 
 
     # Train and validate per epoch
@@ -275,7 +276,7 @@ def main():
 
         for epoch in range(1, args.epochs + 1):
             print(f'Epoch: {epoch}')
-            train_encoder(fcl, decoder, train_iter, decoder_optimizer, criterion, target_length, device, args)
+            train_encoder(fcl, decoder, train_iter, optimizer, criterion, target_length, device, args)
             loss = evaluate_encoder(model, val_iter, criterion)
 
             if not best_valid_loss or loss < best_valid_loss:
