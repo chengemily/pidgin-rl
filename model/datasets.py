@@ -73,6 +73,54 @@ def load_data(data_path, embeds_path, lang, batch_size, device):
     return X_str, (Xtrain_batched, Xtrain_len_batched, ytrain_batched), (Xtest_batched, Xtest_len_batched, ytest_batched)
 
 
+# Functions for translating indexes and words
+
+def create_ix_to_vocab_map(filename='../tokenizer/data/vocab.json'):
+    """
+    Creates ix: word dict
+
+    :param: filename is lcoation of vocab.json
+    :returns: dictionary of ix_to_word
+    """
+    data = load_json(filename)
+    ix_to_word = {v:k for k,v in data.items()}
+    return ix_to_word
+
+def translate_sentence_ix_to_word(vec, ix_to_word):
+    '''
+    :param vec: Vector of indexes (ints)
+    :param ix_to_word: dictionary of ix(int): word(str)
+    :return: vec of words representing a sentence
+    '''
+    return [ix_to_word[ix] for ix in vec]
+
+def get_ix_from_softmax(batch):
+    '''
+    given a batch of softmax vectors, gets the argmax index to predict each word
+    :param batch: tensor of dims (batch x vocab_size x target_length)
+    :return: tensor (batch x sentence length)
+    '''
+    topv, topi = batch.topk(1, dim=1)  # taking argmax
+    return topi.squeeze()
+
+
+def translate_batch(batch, ix_to_word):
+    '''
+    :param batch: tensor(batch x vocab_length, sentence length) given a batch of indexes, translates to words
+    :param ix_to_word:
+    :return: list of lists, each internal list representing a sentence
+    '''
+    batch_ix = get_ix_from_softmax(batch)
+    translated_batch = []
+    for sent in batch_ix:
+        translated_batch.append(translate_sentence_ix_to_word(sent, ix_to_word))
+    return translated_batch
+
+
+
+
+
+
 if __name__ == "__main__":
     datas = '../generate-data/data/train/fr.csv'
     embeds_path = 'embeddings.json'

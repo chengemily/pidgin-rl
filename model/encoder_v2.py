@@ -154,7 +154,7 @@ class Sequence_Generator(nn.Module):
 
             # print(f'loss = {loss}')
             # get top index from softmax of previous layer
-            topv, topi = decoder_output.topk(1)  # taking argmax
+            topv, topi = decoder_output.topk(1)  # taking argmax, make sure dim is correct
             topv.detach()  # detaching for safe measure
             decoder_input = topi.view(-1, 1).detach()
 

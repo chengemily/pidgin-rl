@@ -66,7 +66,10 @@ def repackage_hidden(h):
         return tuple(repackage_hidden(v) for v in h)
 
 
-def train_encoder(model, data, optimizer, criterion, device, args):
+
+
+
+def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word):
     """
     :param model: (nn.Module) model
     :param data: iterator of data
@@ -109,6 +112,10 @@ def train_encoder(model, data, optimizer, criterion, device, args):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
             optimizer.step()
+
+            # print example sentences
+            if batch_num % 100 == 0:
+                print(translate_batch(pred, ix_to_word))
 
             # Detach pred?
             pred.detach()
@@ -166,6 +173,9 @@ def main():
     print(f'Cuda available? {torch.cuda.is_available()}')
     device = torch.device("cpu") if not cuda else torch.device("cuda:0")
     seed_everything(seed=1337, cuda=cuda)
+    
+    # get ix_to_word map
+    ix_to_word = create_ix_to_vocab_map(args.embeds_path)
 
     # Load dataset iterators
     # TODO figure out data loading
@@ -234,7 +244,7 @@ def main():
 
         for epoch in range(1, args.epochs + 1):
             print(f'Epoch: {epoch}')
-            train_encoder(sequence_gen, train_iter, optimizer, criterion, device, args)
+            train_encoder(sequence_gen, train_iter, optimizer, criterion, device, args, ix_to_word)
             loss = evaluate_encoder(sequence_gen, val_iter, criterion, args)
 
             if not best_valid_loss or loss < best_valid_loss:
