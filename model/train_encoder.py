@@ -134,7 +134,7 @@ def train_encoder(fcl, decoder, data, optimizer, criterion, target_length, devic
                 # get top index from softmax of previous layer
                 topv, topi = decoder_output.topk(1) # taking argmax
                 topv.detach() # detaching for safe measure
-                decoder_input = topi.view(-1,1).detach()
+                decoder_input = topi.view(-1,1)
                 # decoder_output = torch.ones([32, 75], device=device, dtype=torch.float)
                 # decoder_hidden = decoder_hidden.detach()
                 # take NLL loss
@@ -148,7 +148,9 @@ def train_encoder(fcl, decoder, data, optimizer, criterion, target_length, devic
             # Detach the hidden state to avoid a giant graph
             repackage_hidden(decoder_hidden)
             repackage_hidden(init_hidden)
-
+            decoder_output.detach()
+            x.detach()
+            y.detach()
 
             # print('loss backward: ', time.time() - t1)
             # torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
@@ -195,6 +197,7 @@ def evaluate_encoder(fcl, decoder, data, criterion, target_length, args, type='V
                 # get top index from softmax of previous layer
                 topv, topi = decoder_output.topk(1) # taking argmax
                 decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
+                
 
 
             print("[Batch]: {}/{} in {:.5f} seconds".format(
