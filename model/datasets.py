@@ -100,6 +100,11 @@ def get_ix_from_softmax(batch):
     :param batch: tensor of dims (batch x vocab_size x target_length)
     :return: tensor (batch x sentence length)
     '''
+    # if already two dimensions, just return
+    if len(batch.size()) == 2:
+        return batch
+
+    # if more than two, take argmax and return two dims
     topv, topi = batch.topk(1, dim=1)  # taking argmax
     return topi.squeeze()
 
