@@ -1,6 +1,6 @@
-import argparse
 from itertools import chain
 import json
+import argparse
 import os, sys
 import time
 import numpy as np
@@ -60,9 +60,13 @@ def seed_everything(seed, cuda=False):
     if cuda:
         torch.cuda.manual_seed_all(seed)
 
+def repackage_hidden(h):
+    """Wraps hidden states in new Variables, to detach them from their history."""
+    if type(h) != tuple: # if the hidden state is a variable (see imports)
+        return h.detach() # detach from history
+    else:
+        return tuple(repackage_hidden(v) for v in h)
 
-SOS_token = 1
-EOS_token = 2
 
 def train_encoder(fcl, decoder, data, optimizer, criterion, target_length, device, args):
     """
@@ -80,6 +84,7 @@ def train_encoder(fcl, decoder, data, optimizer, criterion, target_length, devic
     loss = 0 # is this redundant with total_loss defined? -> this one will store criterion, total_loss stores cumulative loss
 
     for batch_num, batch in enumerate(data[0]):
+        optimizer.zero_grad() # this may be superfluous given all model parameter are in the same optimizer (might not need model.zero_grad()
         fcl.zero_grad()
         decoder.zero_grad()
         # x is coordinate, y is output indices
@@ -106,7 +111,9 @@ def train_encoder(fcl, decoder, data, optimizer, criterion, target_length, devic
             # print(f'x after fcl, hidden batch : {init_hidden}')
 
             # init decoder input and hidden
+            
             decoder_hidden = init_hidden
+
             # if isinstance(decoder_hidden, tuple):
             #     print(f'decoder hidde: size: {decoder_hidden[0].size()}')
             # else: print(f'decoder hidden size: {decoder_hidden.size()}')
@@ -126,8 +133,8 @@ def train_encoder(fcl, decoder, data, optimizer, criterion, target_length, devic
                 # print(f'loss = {loss}')
                 # get top index from softmax of previous layer
                 topv, topi = decoder_output.topk(1) # taking argmax
-                decoder_input = topi.view(-1,1).detach() # remove unneeded dimension
-                # decoder_input = torch.ones([32,1], device=device, dtype=torch.long)
+                topv.detach() # detaching for safe measure
+                decoder_input = topi.view(-1,1).detach()
                 # decoder_output = torch.ones([32, 75], device=device, dtype=torch.float)
                 # decoder_hidden = decoder_hidden.detach()
                 # take NLL loss
@@ -136,8 +143,13 @@ def train_encoder(fcl, decoder, data, optimizer, criterion, target_length, devic
                 # print(f'decoder input: {decoder_input}')
                 # print(f'decoder input size: {decoder_input.size()}')
 
-            optimizer.zero_grad()
             loss.backward(retain_graph=True)
+
+            # Detach the hidden state to avoid a giant graph
+            repackage_hidden(decoder_hidden)
+            repackage_hidden(init_hidden)
+
+
             # print('loss backward: ', time.time() - t1)
             # torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.clip)
             optimizer.step()
@@ -157,6 +169,7 @@ def evaluate_encoder(fcl, decoder, data, criterion, target_length, args, type='V
     total_loss = 0
     with torch.no_grad():
         for batch_num, batch in enumerate(data[0]):
+        
 
             x = data[2][batch_num].float().to(device)
             y = batch.to(device)
