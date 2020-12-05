@@ -226,7 +226,7 @@ def main():
     # Define loss and optimizer
     criterion = nn.NLLLoss()
 
-    optimizer = torch.optim.Adam(sequence_gen.paramteres(), args.lr, amsgrad=True)
+    optimizer = torch.optim.Adam(sequence_gen.parameters(), args.lr, amsgrad=True)
 
     # Train and validate per epoch
     try:

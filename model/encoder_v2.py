@@ -118,7 +118,7 @@ class Sequence_Generator(nn.Module):
         :param input: should be a [x,y] pair
         :return: output_tensor: tensor of word predictions in indexed form
         '''
-        batch_output = torch.zeros(self.batch_size, self.target_length, self.vocab_size, device=self.device)
+        batch_output = torch.zeros(self.batch_size, self.vocab_size, self.target_length, device=self.device)
 
         # [x,y] through FC to get initial hidden state
         init_hidden = self.fc(inp).unsqueeze(0)  # .to(device)  # hidden dim is (num_layers, batch, hidden_size)
@@ -127,7 +127,7 @@ class Sequence_Generator(nn.Module):
         # print(f'initial hidden size: {init_hidden.size()}')
 
         # make compatible with LSTM
-        if rnn_type == 'LSTM':
+        if self.rnn_type == 'LSTM':
             init_hidden = (init_hidden, init_hidden)
         # print(f'x after fcl, hidden batch : {init_hidden}')
 
@@ -159,7 +159,7 @@ class Sequence_Generator(nn.Module):
             decoder_input = topi.view(-1, 1).detach()
 
             # add decoder output to outputs tensor
-            batch_output[:, di, :] = decoder_output
+            batch_output[:, :, di] = decoder_output
 
         # TODO - detach anything here?
 
