@@ -115,7 +115,12 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word):
 
             # print example sentences
             if batch_num % 100 == 0:
-                print(translate_batch(pred, ix_to_word))
+                translated_batch = translate_batch(pred, ix_to_word)
+                print(f'Size of translated batch: {(len(translated_batch), len(translated_batch[0]))}')
+                print(f'Size of prediction : {pred.size()}')
+                print(f'Predicted sentences: {translated_batch[:3]}\n')
+                print(f'Index: {pred[:3,:,:].topk(1,dim=1)[1]}')
+                
 
             # Detach pred?
             pred.detach()
@@ -130,7 +135,7 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word):
 
 
 
-def evaluate_encoder(model, data, criterion, args, type='Valid'):
+def evaluate_encoder(model, data, criterion, device, args, type='Valid'):
     model.eval()
     t = time.time()
     total_loss = 0
@@ -139,7 +144,7 @@ def evaluate_encoder(model, data, criterion, args, type='Valid'):
             x = data[2][batch_num].float()  # .to(device) # make the coordinates the predictors x
             y = batch
 
-            pred = model(x.to(args.device))
+            pred = model(x.to(device))
             total_loss += float(criterion(pred, y))
             print("[Batch]: {}/{} in {:.5f} seconds".format(
                 batch_num, len(data[0]), time.time() - t), end='\r', flush=True)
@@ -175,7 +180,7 @@ def main():
     seed_everything(seed=1337, cuda=cuda)
     
     # get ix_to_word map
-    ix_to_word = create_ix_to_vocab_map(args.embeds_path)
+    ix_to_word = create_ix_to_vocab_map(args.vocab_path)
 
     # Load dataset iterators
     # TODO figure out data loading
@@ -245,7 +250,7 @@ def main():
         for epoch in range(1, args.epochs + 1):
             print(f'Epoch: {epoch}')
             train_encoder(sequence_gen, train_iter, optimizer, criterion, device, args, ix_to_word)
-            loss = evaluate_encoder(sequence_gen, val_iter, criterion, args)
+            loss = evaluate_encoder(sequence_gen, val_iter, criterion, device, args)
 
             if not best_valid_loss or loss < best_valid_loss:
                 best_valid_loss = loss

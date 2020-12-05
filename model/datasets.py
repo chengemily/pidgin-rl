@@ -92,7 +92,7 @@ def translate_sentence_ix_to_word(vec, ix_to_word):
     :param ix_to_word: dictionary of ix(int): word(str)
     :return: vec of words representing a sentence
     '''
-    return [ix_to_word[ix] for ix in vec]
+    return [ix_to_word[ix.item()] for ix in vec]
 
 def get_ix_from_softmax(batch):
     '''

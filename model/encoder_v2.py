@@ -135,6 +135,8 @@ class Sequence_Generator(nn.Module):
         decoder_hidden = init_hidden
         decoder_input = torch.ones(self.batch_size, 1, dtype=torch.long,
                                    device=self.device)  # init starting tokens, long is the same as ints, which are needed for embedding layer
+        # add starting token to batch_output
+        batch_output[:,:,0] = decoder_input
 
         # if isinstance(decoder_hidden, tuple):
         #     print(f'decoder hidden: size: {decoder_hidden[0].size()}')
