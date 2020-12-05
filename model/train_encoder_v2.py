@@ -117,8 +117,7 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word):
             if batch_num % 100 == 0:
                 translated_batch = translate_batch(pred, ix_to_word)
                 translated_y = translate_batch(y, ix_to_word)
-                print(f'Size of translated batch: {(len(translated_batch), len(translated_batch[0]))}')
-                print(f'Size of prediction : {pred.size()}')
+                print(f'Original instructions: {x[:3]}')
                 print(f'Predicted sentences: {translated_batch[:3]}\n')
                 print(f'Actual sentence: {translated_y[:3]}\n\n')
                 print(f'Predicted Index: {pred[:3,:,:].topk(1,dim=1)[1]}')
