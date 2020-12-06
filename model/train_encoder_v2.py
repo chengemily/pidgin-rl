@@ -26,7 +26,7 @@ def make_parser():
     parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
                         help='Embeddings path')
     parser.add_argument('--use_pretrained', action='store_true')
-    parser.add_argument('--emsize', type=int, default=300,
+    parser.add_argument('--emsize', type=int, default=20,
                         help='size of word embeddings [Uses pretrained on 50, 100, 200, 300]')
     parser.add_argument('--hidden', type=int, default=20,  # changing hidden to match emsize
                         help='number of hidden units for the RNN decoder')
@@ -117,11 +117,11 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word):
             if batch_num % 100 == 0:
                 translated_batch = translate_batch(pred, ix_to_word)
                 translated_y = translate_batch(y, ix_to_word)
-                print(f'Original instructions: {x[:3]}')
-                print(f'Predicted sentences: {translated_batch[:3]}\n')
-                print(f'Actual sentence: {translated_y[:3]}\n\n')
-                print(f'Predicted Index: {pred[:3,:,:].topk(1,dim=1)[1]}')
-                print(f'Actual Index: {y[:3]}\n\n')
+                print(f'Original instructions: \n{x[:3]}')
+                print(f'Predicted sentences: \n{translated_batch[:3]}\n')
+                print(f'Actual sentence: \n{translated_y[:3]}\n\n')
+                # print(f'Predicted Index: \n{pred[:3,:,:].topk(1,dim=1)[1]}')
+                # print(f'Actual Index: {y[:3]}\n\n')
                 
 
             # Detach pred?
