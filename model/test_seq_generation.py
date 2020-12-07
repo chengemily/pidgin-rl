@@ -17,40 +17,20 @@ from train_encoder_v2 import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch Sequence Generator')
-    parser.add_argument('--model_path', type=str, default='../saved_models/en_encoder/model.pt')
+    parser.add_argument('--model_path', type=str, default='saved_models/en_encoder/model.pt')
 
-    parser.add_argument('--save_path', type=str, default='saved_models/en_encoder/model.pt')
     parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/en.csv',
                         help='Dataset path')
     parser.add_argument('--lang', type=str, default='en')
-    parser.add_argument('--model', type=str, default='LSTM',
-                        help='type of recurrent net [LSTM, GRU]')
-    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
+    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data_words.json',
                         help='Embeddings path')
-    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
+    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab_words.json',
                         help='Embeddings path')
     parser.add_argument('--use_pretrained', action='store_true')
-    parser.add_argument('--emsize', type=int, default=20,
-                        help='size of word embeddings [Uses pretrained on 50, 100, 200, 300]')
-    parser.add_argument('--hidden', type=int, default=20,  # changing hidden to match emsize
-                        help='number of hidden units for the RNN decoder')
-    parser.add_argument('--nlayers', type=int, default=1,
-                        help='number of layers of the RNN decoder')
-    parser.add_argument('--lr', type=float, default=1e-3,
-                        help='initial learning rate')
-    parser.add_argument('--clip', type=float, default=5,
-                        help='gradient clipping')
-    parser.add_argument('--epochs', type=int, default=10,
-                        help='upper epoch limit')
-    parser.add_argument('--batch_size', type=int, default=32, metavar='N',
-                        help='batch size')
-    parser.add_argument('--drop', type=float, default=0.3,
-                        help='dropout')
-    parser.add_argument('--bi', action='store_true',
-                        help='[USE] bidirectional encoder')
     parser.add_argument('--cuda', action='store_false',
                         help='[DONT] use CUDA')
-
+    parser.add_argument('--batch_size', type=int, default=32, metavar='N',
+                        help='batch size')
     return parser
 
 
@@ -96,23 +76,23 @@ def main():
 
     # Define and compute loss
     criterion = nn.NLLLoss(ignore_index=0)
-    loss = evaluate_encoder(model, test_iter, criterion, device, args, type='Test') 
-    print("Test loss: ", loss)
+    # loss = evaluate_encoder(model, test_iter, criterion, device, args, type='Test') 
+    # print("Test loss: ", loss)
 
     # make predictions with model
     ix = np.random.randint(len(test_iter))
     y = test_iter[0][ix] # actual data
     x = test_iter[2][ix].float()
-    pred = model.pred(x)
+    pred = model(x)
 
 
     # Print some sample evaluations
     translated_batch = translate_batch(pred, ix_to_word)
     translated_y = translate_batch(y, ix_to_word)
-    print(f'Original instructions: \n{x[:10]}')
-    print(f'Predicted sentences: \n{translated_batch[:10]}\n')
-    print(f'Actual sentence: \n{translated_y[:10]}\n\n')
-
+    for ix, v in enumerate(x[:10]):
+        print(f'\nOriginal instructions: \n{v}')
+        print(f'Predicted:\n{translated_batch[ix]}')
+        print(f'Actual:\n{translated_y[ix]}')
 
 
 if __name__ == '__main__':
