@@ -15,7 +15,7 @@ from encoder_v2 import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch Sequence Generator')
-    parser.add_argument('--save_path', type=str, default='saved_models/fr_encoder/model.pt')
+    parser.add_argument('--save_path', type=str, default='saved_models/en_encoder/model.pt')
     parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/en.csv',
                         help='Dataset path')
     parser.add_argument('--lang', type=str, default='en')

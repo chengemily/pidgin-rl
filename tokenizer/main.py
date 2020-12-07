@@ -9,15 +9,15 @@ def main():
     # TODO - make these arg parse arguments?
     en_corpus = '../generate-data/data/train/en.csv'
     fr_corpus = '../generate-data/data/train/fr.csv'
-    vocab_size = 120
-    vector_size = 10
+    vocab_size = 300
+    vector_size = 20
 
     # Load tokenizer or train if not present
     print('Training tokenizer')
-    if os.path.isfile('models/wp_model.json'):
-        tokenizer = tokenize_.load_tokenizer_from_file(filename='models/wp_model.json')
-    else:
-        tokenizer = tokenize_.train_tokenizer([en_corpus, fr_corpus],
+    #if os.path.isfile('models/wp_model_words.json'):
+     #   tokenizer = tokenize_.load_tokenizer_from_file(filename='models/wp_model_words.json')
+    #else:
+    tokenizer = tokenize_.train_tokenizer([en_corpus, fr_corpus],
                     vocab_size=vocab_size) # c
 
     print(tokenizer)
@@ -35,13 +35,16 @@ def main():
     ix_tokens_fr = ix_tokens[:len(enc_fr)]
     ix_tokens_en = ix_tokens[len(enc_fr):]
 
+    print(f'french tokens : {ix_tokens_fr}')
+    print(f'english tokens : {ix_tokens_en}')
+
     # train word2vec model on concat of french and english corpora
     print('Training word2vec model')
     # if os.path.isfile('models/embed_model.json'):
     #     embedder = word_embed.load_word2vec_model('../models/embed_model.json')
     # else:
     embedder = word_embed.train_word2vec_model(ix_tokens,
-                                               filename='models/embed_model.json',
+                                               filename='models/embed_model_words.json',
                                                window=3,
                                                size=vector_size)
 
@@ -70,23 +73,23 @@ def main():
     print('Saving to json')
 
     # dump vocabulary
-    with open('data/vocab.json', 'w') as f:
+    with open('data/vocab_words.json', 'w') as f:
         json.dump(word_to_ix, f)
 
     # dump indexed data
-    with open('data/tokens.json', 'w') as f:
+    with open('data/tokens_words.json', 'w') as f:
         json.dump({'fr': ix_tokens_fr, 'en': ix_tokens_en}, f)
 
     # dumpindexed data
-    with open('data/indexed_data.json', 'w') as f:
+    with open('data/indexed_data_words.json', 'w') as f:
         json.dump({'fr': sentence_i_fr, 'en': sentence_i_en}, f)
 
     # dump embedded data
-    with open('data/embedded_data.json', 'w') as f:
+    with open('data/embedded_data_words.json', 'w') as f:
         json.dump({'fr': sentence_embeddings_fr, 'en': sentence_embeddings_en}, f)
 
     # dump word embeddings
-    with open('data/embeddings.json', 'w') as outfile:
+    with open('data/embeddings_words.json', 'w') as outfile:
         json.dump({'word_to_vec': word_embeddings}, outfile)
 
 

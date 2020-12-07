@@ -20,7 +20,7 @@ def read_cfg_train_data(filename, header=True):
 ###### Functions for training tokenizern ######
 
 def train_tokenizer(corpora, model='wp', vocab_size=50,
-                    save=True, filename='wp_model.json', overwrite=False):
+                    save=True, filename='wp_model_words.json', overwrite=False):
     '''
     Given a set of training corpora, trains a tokenizer to tokenize
     See wordpiece method: https://huggingface.co/transformers/tokenizer_summary.html
@@ -122,25 +122,26 @@ def decode_batch(encoded_batch, tokenizer_):
 
 
 if __name__ == "__main__":
-    print('running tokenizer')
-    tokenizer = train_tokenizer(['../../generate-data/data/train/en.csv',
-                    '../../generate-data/data/train/fr.csv'],
-                    model='wp',
-                    vocab_size=120,
-                    filename='wp_model.json') # c
+    pass
+    # print('running tokenizer')
+    # tokenizer = train_tokenizer(['../../generate-data/data/train/en.csv',
+                    #'../../generate-data/data/train/fr.csv'],
+                    #model='wp',
+                    #vocab_size=120,
+                    #filename='wp_model.json') # c
 
 
     # # load save tokenizer
-    tokenizer = load_tokenizer_from_file(filename='../models/wp_model.json')
+    # tokenizer = load_tokenizer_from_file(filename='../models/wp_model.json')
 
     # testing here :
-    batch = ['descendez', 'allez', 'gauche', 'la droite', 'cinquante', 'fifty',
-             'quatre-vingts dix-sept', 'fifteen',
-             'Allez de quatre à gauche, et puis montez de cinquante-quatre',
-             'allez de soixante à droite, and then montez vingt et un',
-             'I really wonder how well the tokenizer will work']
+    # batch = ['descendez', 'allez', 'gauche', 'la droite', 'cinquante', 'fifty',
+             #'quatre-vingts dix-sept', 'fifteen',
+             #'Allez de quatre à gauche, et puis montez de cinquante-quatre',
+             #'allez de soixante à droite, and then montez vingt et un',
+             #'I really wonder how well the tokenizer will work']
 
-    print(f'tokenizer: {dir(tokenizer)}')
-    encoded_batch = encode_batch(tokenizer, batch)
-    for seq, enc in zip(batch, encoded_batch):
-        print(f'Seq: {seq} \nEnc: {enc.tokens}\n')
+    # print(f'tokenizer: {dir(tokenizer)}')
+    # encoded_batch = encode_batch(tokenizer, batch)
+    # for seq, enc in zip(batch, encoded_batch):
+        #print(f'Seq: {seq} \nEnc: {enc.tokens}\n')
