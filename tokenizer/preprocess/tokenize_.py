@@ -67,7 +67,7 @@ def train_tokenizer(corpora, model='wp', vocab_size=50,
                                   file name to save this model or set overwrite=True to overwrite')
             return
         else:
-            tokenizer.save(os.path.join('../models', filename))
+            tokenizer.save(os.path.join('../decoder/models', filename))
 
     return tokenizer
 

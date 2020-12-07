@@ -44,7 +44,7 @@ def main():
     #     embedder = word_embed.load_word2vec_model('../models/embed_model.json')
     # else:
     embedder = word_embed.train_word2vec_model(ix_tokens,
-                                               filename='models/embed_model_words.json',
+                                               filename='../decoder/models/embed_model_words.json',
                                                window=3,
                                                size=vector_size)
 
@@ -73,23 +73,23 @@ def main():
     print('Saving to json')
 
     # dump vocabulary
-    with open('data/vocab_words.json', 'w') as f:
+    with open('../decoder/data/vocab_words.json', 'w') as f:
         json.dump(word_to_ix, f)
 
     # dump indexed data
-    with open('data/tokens_words.json', 'w') as f:
+    with open('../decoder/data/tokens_words.json', 'w') as f:
         json.dump({'fr': ix_tokens_fr, 'en': ix_tokens_en}, f)
 
     # dumpindexed data
-    with open('data/indexed_data_words.json', 'w') as f:
+    with open('../decoder/data/indexed_data_words.json', 'w') as f:
         json.dump({'fr': sentence_i_fr, 'en': sentence_i_en}, f)
 
     # dump embedded data
-    with open('data/embedded_data_words.json', 'w') as f:
+    with open('../decoder/data/embedded_data_words.json', 'w') as f:
         json.dump({'fr': sentence_embeddings_fr, 'en': sentence_embeddings_en}, f)
 
     # dump word embeddings
-    with open('data/embeddings_words.json', 'w') as outfile:
+    with open('../decoder/data/embeddings_words.json', 'w') as outfile:
         json.dump({'word_to_vec': word_embeddings}, outfile)
 
 
