@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable as V
+from torch.utils.tensorboard import SummaryWriter
 
 from datasets import *
 from decoder import *
@@ -46,6 +47,8 @@ def make_parser():
                         help='[USE] bidirectional encoder')
     parser.add_argument('--cuda', action='store_false',
                         help='[DONT] use CUDA')
+    parser.add_argument('--no_tensorboard', action='store_false',
+                        help="[DON'T] use tensorboard")
 
     return parser
 
@@ -69,18 +72,21 @@ def repackage_hidden(h):
 
 
 
-def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word):
+def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, epoch, writer):
     """
     :param model: (nn.Module) model
     :param data: iterator of data
     :param optimizer:
     :param criterion: loss function(pred, actual)
     :param args:
+    :param ix_to_word: dictionary of ix to words for batch translation
+    :param epoch: which epoch we're on (useful for Tensorboard)
+    :param writer: tensorboard writer object for logging losses
     :return:
     """
     model.train()
     t = time.time()
-
+    n_batches = len(data[0])
     total_loss = 0  # is this redundant with total_loss defined? -> this one will store criterion, total_loss stores cumulative loss
 
     for batch_num, batch in enumerate(data[0]):
@@ -107,6 +113,7 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word):
 
             # Compute loss
             loss = criterion(pred, y) # TODO - pred might be the wrong dimensions (switch 1 and 2)
+            writer.add_scalar("Loss/train", loss, epoch*n_batches +  batch_num)
             total_loss += loss
 
             loss.backward()
@@ -176,11 +183,20 @@ def main():
     args = make_parser().parse_args()
     print("[Model hyperparams]: {}".format(str(args)))
 
+    # init device
     cuda = torch.cuda.is_available() and args.cuda
     print(f'Cuda available? {torch.cuda.is_available()}')
     device = torch.device("cpu") if not cuda else torch.device("cuda:0")
     seed_everything(seed=1337, cuda=cuda)
-    
+
+
+    # init tensorboard writer # TODO - maybe just always initialize writer
+    if not args.no_tensorboard:
+        writer = SummaryWriter()
+    else: writer = None
+
+
+
     # get ix_to_word map
     ix_to_word = create_ix_to_vocab_map(args.vocab_path)
 
@@ -251,8 +267,20 @@ def main():
 
         for epoch in range(1, args.epochs + 1):
             print(f'Epoch: {epoch}')
-            train_encoder(sequence_gen, train_iter, optimizer, criterion, device, args, ix_to_word)
+            train_encoder(sequence_gen,
+                          train_iter,
+                          optimizer,
+                          criterion,
+                          device,
+                          args,
+                          ix_to_word,
+                          epoch=epoch-1, # epoch for tensorboard
+                          writer=writer) # writer for tensorboard
             loss = evaluate_encoder(sequence_gen, val_iter, criterion, device, args)
+
+            # log in tensorboard
+            if writer is not None:
+                writer.add_scalar("Loss/val by epoch", loss, epoch)
 
             if not best_valid_loss or loss < best_valid_loss:
                 best_valid_loss = loss
@@ -262,15 +290,17 @@ def main():
 
     loss = evaluate_encoder(sequence_gen, test_iter, criterion, device, args, type='Test')
     print("Test loss: ", loss)
+    writer.add_scalar("Loss/test final", loss)
+
+    # save Tensorboard logs and close writer
+    writer.flush()
+    writer.close()
+
 
     # Save model
     torch.save(sequence_gen, args.save_path)
 
-    # Print some sample evaluations
-    batch_to_print_X, batch_to_print_X_lens, batch_to_print_Y = val_iter[0][0]
-    pred = model(batch_to_print_Y)
-    print("Predictions: ", pred)
-    print("Original: ", batch_to_print_Y)
+
 
 
 if __name__ == '__main__':
