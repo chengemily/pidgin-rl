@@ -191,9 +191,7 @@ def main():
 
 
     # init tensorboard writer # TODO - maybe just always initialize writer
-    if not args.no_tensorboard:
-        writer = SummaryWriter()
-    else: writer = None
+    writer = SummaryWriter()
 
 
 
