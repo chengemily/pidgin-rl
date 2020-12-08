@@ -135,7 +135,7 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
             pred.detach()
 
             print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
-                batch_num, len(data[0]), time.time() - t, loss / (batch_num * len(batch))), end='\r', flush=True)
+                batch_num, len(data[0]), time.time() - t, total_loss / batch_num, end='\r', flush=True)
             t = time.time()
 
     print()
