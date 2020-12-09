@@ -1,0 +1,7 @@
+S -> XY | X | Y
+XY -> X ', puis' Y | X 'puis' Y | X 'et puis' Y
+YX -> Y ', puis' X | Y 'puis' X | Y 'et puis' X
+X -> 'allez de <X> à' XDir
+Y -> YDir 'de <Y>'
+XDir -> 'gauche' | 'droite'
+YDir -> 'montez' | 'descendez'
