@@ -16,7 +16,8 @@ from encoder_v2 import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch Sequence Generator')
-    parser.add_argument('--save_path', type=str, default='saved_models/en_encoder/model.pt')
+    parser.add_argument('--save_path', type=str, default='saved_models/en_encoder')
+    parser.add_argument('--seq_output_path', type=str, default='')
     parser.add_argument('--dataset_path', type=str, default='../generate-data/data_final/train/en.csv',
                         help='Dataset path')
     parser.add_argument('--lang', type=str, default='en')
@@ -109,7 +110,8 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
 
             # Compute loss
             loss = criterion(pred, y) # TODO - pred might be the wrong dimensions (switch 1 and 2)
-            writer.add_scalar("Loss/train", loss, epoch*n_batches +  batch_num)
+            # add to tensorboard
+            writer.add_scalar("Loss/train over batches", loss, epoch * n_batches +  batch_num)
             total_loss += loss
 
             loss.backward()
@@ -117,7 +119,7 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
             optimizer.step()
 
             # print example sentences
-            if batch_num % 100 == 0:
+            if batch_num % 1000 == 0:
                 translated_batch = translate_batch(pred, ix_to_word)
                 translated_y = translate_batch(y, ix_to_word)
                 print(f'Original instructions: \n{x[:3]}')
@@ -126,13 +128,15 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
                 # print(f'Predicted Index: \n{pred[:3,:,:].topk(1,dim=1)[1]}')
                 # print(f'Actual Index: {y[:3]}\n\n')
                 
-
+    
             # Detach pred?
             pred.detach()
 
             print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format( batch_num, len(data[0]), time.time() - t, total_loss / batch_num), end='\r', flush=True)
             t = time.time()
-
+            
+    # add training loss to tensorboard
+    writer.add_scalar('Loss/train over epochs', total_loss, epoch)
     print()
     print("[Loss]: {:.5f}".format(loss / len(data)))
     return loss / (args.batch_size * len(data[0]))
@@ -157,7 +161,7 @@ def evaluate_encoder(model, data, criterion, device, args, type='Valid'):
                 print(y)
 
     print()
-    print("[{} loss]: {:.5f}".format(type, total_loss / len(data)))
+    print("[{} loss]: {:.5f}".format(type, total_loss / (len(data[0]) * args.batch_size)))
     return total_loss / (len(data[0]) * args.batch_size)
 
 
@@ -268,7 +272,31 @@ def main():
                           writer=writer) # writer for tensorboard
             loss = evaluate_encoder(sequence_gen, val_iter, criterion, device, args)
 
-            # log in tensorboard
+            # Save model
+            torch.save(sequence_gen, os.path.join(args.save_path, f'model_epoch_{epoch}.pt'))
+
+
+            # Output .txt file with predictions if path specified
+            if len(args.seq_output_path) > 0:
+                print('Writing predicted outputs to .txt file')
+                try:
+                    with open(os.path.join(args.seq_output_path, f'seq_output_{epoch}.txt', 'w')) as out_file1:
+                        with open(os.path.join(args.seq_output_path, f'true_{epoch}.txt', 'w')) as out_file2:
+                            for batch_num, batch in enumerate(test_iter[0]):
+
+                                x = test_iter[2][batch_num].float()  # .to(device) # make the coordinates the predictors x
+                                y = batch
+
+                                pred = sequence_gen(x.to(device))
+
+                                translated_batch = translate_batch(pred, ix_to_word)
+                                translated_y = translate_batch(y, ix_to_word)
+                                out_file1.write(translated_batch)
+                                out_file2.write(translated_y)
+
+                except: continue
+
+        # log in tensorboard
             if writer is not None:
                 writer.add_scalar("Loss/val by epoch", loss, epoch)
 
@@ -287,8 +315,7 @@ def main():
     writer.close()
 
 
-    # Save model
-    torch.save(sequence_gen, args.save_path)
+
 
 
 

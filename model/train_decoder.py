@@ -17,7 +17,7 @@ from decoder import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch RNN Classifier w/ attention')
-    parser.add_argument('--save_path', type=str, default='saved_models/en_decoder/model_large.pt')
+    parser.add_argument('--save_path', type=str, default='saved_models/en_decoder')
     parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/en.csv')
     parser.add_argument('--lang', type=str, default='en')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
@@ -71,7 +71,7 @@ def seed_everything(seed, cuda=False):
         torch.cuda.manual_seed_all(seed)
 
 
-def train(model, data, optimizer, criterion, device, args):
+def train(model, data, optimizer, criterion, device, args, epoch, writer):
     """
 
     :param model: (nn.Module) model
@@ -84,6 +84,7 @@ def train(model, data, optimizer, criterion, device, args):
     model.train()
     t = time.time()
     total_loss = 0
+    n_batches = len(data[0])
     attn_maps = []
 
     for batch_num, batch in enumerate(data[0]):
@@ -103,6 +104,7 @@ def train(model, data, optimizer, criterion, device, args):
 
         # Compute loss
         loss = criterion(pred, y.float())
+        writer.add_scalar("Loss/train over batches", loss, epoch * n_batches + batch_num)
         total_loss += loss
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
@@ -112,6 +114,8 @@ def train(model, data, optimizer, criterion, device, args):
             batch_num, len(data[0]), time.time() - t, 100**2 * total_loss / (batch_num * len(batch))), end='\r', flush=True)
         t = time.time()
 
+
+    writer.add_scalar('Loss/train over epochs', total_loss, epoch)
     print()
     print("[Loss]: {:.5f}".format(100**2 * total_loss / (args.batch_size * len(data[0]))))
     return total_loss / (args.batch_size * len(data[0]))
@@ -150,6 +154,10 @@ def main():
     print("Found cuda: ", torch.cuda.is_available())
     device = torch.device("cpu") if not cuda else torch.device("cuda:0")
     seed_everything(seed=1337, cuda=cuda)
+
+    # init tensorboard writer
+    writer = SummaryWriter()
+
 
     # Load dataset iterators
 
@@ -194,20 +202,33 @@ def main():
         best_valid_loss = None
 
         for epoch in range(1, args.epochs + 1):
-            train(model, train_iter, optimizer, criterion, device, args)
+            train(model, train_iter, optimizer, criterion, device, args,
+                  epoch=epoch-1,
+                  writer=writer)
             loss = evaluate(model, val_iter, criterion, device, args, type='Valid')
+
+            # Save model
+            torch.save(model, os.path.join(args.save_path, f'model_epoch_{epoch}.pt'))
+
 
             if not best_valid_loss or loss < best_valid_loss:
                 best_valid_loss = loss
+
+            # log in tensorboard
+            if writer is not None:
+                writer.add_scalar("Loss/val by epoch", loss, epoch)
 
     except KeyboardInterrupt:
         print("[Ctrl+C] Training stopped!")
 
     loss = evaluate(model, test_iter, criterion, device, args, type='Test')
     print("Test loss: ", 100**2 * loss)
+    writer.add_scalar("Loss/test final", loss)
 
-    # Save model
-    torch.save(model, args.save_path)
+
+    # save Tensorboard logs and close writer
+    writer.flush()
+    writer.close()
 
     # Print some sample evaluations
     batch_to_print_X, batch_to_print_X_lens, batch_to_print_Y = val_iter[0][0]
