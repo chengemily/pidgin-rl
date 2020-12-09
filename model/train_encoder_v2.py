@@ -30,7 +30,7 @@ def make_parser():
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=20,
                         help='size of word embeddings [Uses pretrained on 50, 100, 200, 300]')
-    parser.add_argument('--hidden', type=int, default=20,  # changing hidden to match emsize
+    parser.add_argument('--hidden', type=int, default=20,  
                         help='number of hidden units for the RNN decoder')
     parser.add_argument('--nlayers', type=int, default=1,
                         help='number of layers of the RNN decoder')
