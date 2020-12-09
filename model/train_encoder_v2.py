@@ -17,14 +17,14 @@ from encoder_v2 import *
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch Sequence Generator')
     parser.add_argument('--save_path', type=str, default='saved_models/en_encoder/model.pt')
-    parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/en.csv',
+    parser.add_argument('--dataset_path', type=str, default='../generate-data/data_final/train/en.csv',
                         help='Dataset path')
     parser.add_argument('--lang', type=str, default='en')
     parser.add_argument('--model', type=str, default='LSTM',
                         help='type of recurrent net [LSTM, GRU]')
-    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data_words.json',
+    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data_final/indexed_data_words.json',
                         help='Embeddings path')
-    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab_words.json',
+    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data_final/vocab_words.json',
                         help='Embeddings path')
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=20,

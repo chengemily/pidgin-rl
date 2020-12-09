@@ -9,7 +9,7 @@ def main():
     # TODO - make these arg parse arguments?
     en_corpus = '../generate-data/data_final/train/en.csv'
     fr_corpus = '../generate-data/data_final/train/fr.csv' 
-    save_dir = '../decoder/data_final'
+    save_dir = '../tokenizer/data_final'
     embed_dir = '../decoder/models'
     vocab_size = 300
     vector_size = 20
