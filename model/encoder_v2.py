@@ -5,17 +5,18 @@ import math
 
 
 class Decoder(nn.Module):
-    def __init__(self, output_dim, hidden_dim, embedding, rnn_type='GRU', nlayers=1, dropout=0.):
+    def __init__(self, output_dim, hidden_dim, emsize, embedding, rnn_type='GRU', nlayers=1, dropout=0.):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.embedding = embedding
+        self.emsize = emsize
         # self.dropout = nn.Dropout(dropout)
 
         # Define recurrent unit
         self.rnn_type = rnn_type
         rnn_cell = getattr(nn, rnn_type)  # get constructor from torch.nn
-        self.rnn = rnn_cell(hidden_dim,  # 1st param - input size, 2nd param - hidden size
+        self.rnn = rnn_cell(emsize,  # 1st param - input size, 2nd param - hidden size
                             hidden_dim,
                             nlayers, dropout=dropout,  # ,
                             batch_first=True)  # if inputs are (batch_size, seq, feature)
@@ -23,13 +24,13 @@ class Decoder(nn.Module):
         # Define params needed for output unit
         # Define linear and softmax units, assumes input of shape (batch, sentence_length, vector_length)
         self.out = nn.Linear(hidden_dim, output_dim) # 1st param - size of input, 2nd param - size of output
-        self.softmax = nn.LogSoftmax(dim=0)  # dim=1 means take softmax across first dimension
+        # self.softmax = nn.LogSoftmax(dim=0)  # dim=1 means take softmax across first dimension
 
     def forward(self, inp, h0):
         # if LSTM, change hidden state
 
-        output = self.embedding(inp).view(-1, 1,
-                                          self.hidden_dim)  # TODO - added a third dimension using unsqueeze, check later if errors
+        output = self.embedding(inp) #.view(-1, 1,
+                                          # self.hidden_dim)  # TODO - added a third dimension using unsqueeze, check later if errors
         # input(output.size())
         # output = torch.ones([32, 1, 300], device=torch.device("cuda:0")).float()
         # print(f'embedded input: {output.shape}')
@@ -51,7 +52,7 @@ class Decoder(nn.Module):
         # pass output through fcl and softmax
         output = self.out(output) # take output[0]?
         # print(f'after self.out : {output}')
-        output = self.softmax(output).float().squeeze()  # TODO - why output[0]?
+        # output = self.softmax(output).float().squeeze()  # TODO - why output[0]?
         # print(f'after sotmax : {output}')
         return output, hidden
 
@@ -78,7 +79,6 @@ class Sequence_Generator(nn.Module):
                  embedding,
                  decoder,
                  fc_layer_dims,
-                 hidden_dim,
                  target_length,
                  output_dims,
                  batch_size,
@@ -98,8 +98,6 @@ class Sequence_Generator(nn.Module):
         self.output_dims = output_dims
         self.batch_size = batch_size
         self.vocab_size = vocab_size
-        # self.hidden_dim = hidden_dim
-
 
         # store device for creating decoder_input and outputs tensor
         self.device = device
@@ -148,6 +146,7 @@ class Sequence_Generator(nn.Module):
         for di in range(1, self.target_length - 1):  # start with 1 to predict first non-cls word
             # print(f'rnn loop {di}, before self.decoder')
             decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)  # TODO - handle LSTMs here too
+            # input(decoder_output.size())
             # print(f'rnn loop {di}, after self.decoder')
             #
             # print(f'decoder output: {decoder_output}')
@@ -163,7 +162,8 @@ class Sequence_Generator(nn.Module):
             decoder_input = topi.view(-1, 1).detach()
 
             # add decoder output to outputs tensor
-            batch_output[:, :, di] = decoder_output
+            # input(decoder_output.squeeze().size())
+            batch_output[:, :, di] = decoder_output.squeeze()
 
         # TODO - detach anything here?
 

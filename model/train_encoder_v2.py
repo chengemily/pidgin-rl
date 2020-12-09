@@ -22,9 +22,9 @@ def make_parser():
     parser.add_argument('--lang', type=str, default='en')
     parser.add_argument('--model', type=str, default='LSTM',
                         help='type of recurrent net [LSTM, GRU]')
-    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
+    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data_words.json',
                         help='Embeddings path')
-    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
+    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab_words.json',
                         help='Embeddings path')
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=20,
@@ -107,10 +107,6 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
             # Forward pass
             pred = model(x.to(device))
 
-            # if batch_num % 100 == 0:
-            #     print(pred)
-            #     print(y)
-
             # Compute loss
             loss = criterion(pred, y) # TODO - pred might be the wrong dimensions (switch 1 and 2)
             writer.add_scalar("Loss/train", loss, epoch*n_batches +  batch_num)
@@ -134,15 +130,12 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
             # Detach pred?
             pred.detach()
 
-            print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
-                batch_num, len(data[0]), time.time() - t, total_loss / batch_num, end='\r', flush=True)
+            print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format( batch_num, len(data[0]), time.time() - t, total_loss / batch_num), end='\r', flush=True)
             t = time.time()
 
     print()
     print("[Loss]: {:.5f}".format(loss / len(data)))
     return loss / (args.batch_size * len(data[0]))
-
-
 
 def evaluate_encoder(model, data, criterion, device, args, type='Valid'):
     model.eval()
@@ -193,8 +186,6 @@ def main():
     # init tensorboard writer # TODO - maybe just always initialize writer
     writer = SummaryWriter()
 
-
-
     # get ix_to_word map
     ix_to_word = create_ix_to_vocab_map(args.vocab_path)
 
@@ -218,6 +209,7 @@ def main():
     # get size of vocab
     vocab = load_json(args.vocab_path)
     output_dims = len(vocab)
+    print("VOCAB SIZE:", output_dims)
 
     print("[Corpus]: train: {}, test: {}".format(
         len(train_iter[0]) * len(train_iter[0][0]), len(test_iter[0]) * len(test_iter[0][0])))
@@ -228,21 +220,20 @@ def main():
     # else:
     #     print(f'initialize new embedding: {len(vocab)}')
     #     embedding = nn.Embedding(len(vocab), args.emsize, padding_idx=0)
-    embedding = nn.Embedding(args.emsize, args.hidden)  # 1st param - size of vocab, 2nd param - size of embedding vector
+    embedding = nn.Embedding(output_dims, args.emsize)  # 1st param - size of vocab, 2nd param - size of embedding vector
 
     # Define model pipeline
     # FCL
-    fc_layer_dims = [args.hidden]  # output of FC should be h0, first hidden input
+    fc_layer_dims = [int(args.hidden/ 2 + args.emsize / 2), args.hidden]  # output of FC should be h0, first hidden input
 
     # RNN
-    decoder = Decoder(output_dims, args.hidden, embedding, rnn_type=args.model, nlayers=args.nlayers,
+    decoder = Decoder(output_dims, args.hidden, args.emsize, embedding, rnn_type=args.model, nlayers=args.nlayers,
                       dropout=args.drop)  # TODO - more thoroughly check this
 
     # Sequence Generator
     sequence_gen = Sequence_Generator(embedding,
                                       decoder,
                                       fc_layer_dims,
-                                      args.hidden,
                                       target_length,
                                       output_dims,
                                       args.batch_size,
@@ -255,7 +246,8 @@ def main():
     sequence_gen.to(device)
 
     # Define loss and optimizer
-    criterion = nn.NLLLoss(ignore_index=0)
+    # criterion = nn.NLLLoss(ignore_index=0)
+    criterion = nn.CrossEntropyLoss(ignore_index=0)
 
     optimizer = torch.optim.Adam(sequence_gen.parameters(), args.lr, amsgrad=True)
 
