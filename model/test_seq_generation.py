@@ -73,6 +73,9 @@ def main():
 
     # load model
     model = torch.load(args.model_path, map_location=device)
+    # emb = list(model.children())[:-1][0]
+    # print(emb(torch.tensor(5, dtype=torch.long, device=device)))
+    # input()
 
     # Define and compute loss
     criterion = nn.NLLLoss(ignore_index=0)

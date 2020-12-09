@@ -16,7 +16,7 @@ from encoder_v2 import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch Sequence Generator')
-    parser.add_argument('--save_path', type=str, default='saved_models/en_encoder/model.pt')
+    parser.add_argument('--save_path', type=str, default='saved_models/en_encoder/')
     parser.add_argument('--dataset_path', type=str, default='../generate-data/data_final/train/en.csv',
                         help='Dataset path')
     parser.add_argument('--lang', type=str, default='en')
@@ -29,7 +29,7 @@ def make_parser():
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=20,
                         help='size of word embeddings [Uses pretrained on 50, 100, 200, 300]')
-    parser.add_argument('--hidden', type=int, default=20,  # changing hidden to match emsize
+    parser.add_argument('--hidden', type=int, default=20,  
                         help='number of hidden units for the RNN decoder')
     parser.add_argument('--nlayers', type=int, default=1,
                         help='number of layers of the RNN decoder')
