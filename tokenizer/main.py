@@ -7,8 +7,10 @@ from preprocess import word_embed
 
 def main():
     # TODO - make these arg parse arguments?
-    en_corpus = '../generate-data/data/train/en.csv'
-    fr_corpus = '../generate-data/data/train/fr.csv'
+    en_corpus = '../generate-data/data_final/train/en.csv'
+    fr_corpus = '../generate-data/data_final/train/fr.csv' 
+    save_dir = '../decoder/data_final'
+    embed_dir = '../decoder/models'
     vocab_size = 300
     vector_size = 20
 
@@ -44,7 +46,7 @@ def main():
     #     embedder = word_embed.load_word2vec_model('../models/embed_model.json')
     # else:
     embedder = word_embed.train_word2vec_model(ix_tokens,
-                                               filename='../decoder/models/embed_model_words.json',
+                                               filename=os.path.join(embed_dir, 'embed_model_words.json'),
                                                window=3,
                                                size=vector_size)
 
@@ -72,24 +74,25 @@ def main():
     # save everything as json
     print('Saving to json')
 
+
     # dump vocabulary
-    with open('../decoder/data/vocab_words.json', 'w') as f:
+    with open(os.path.join(save_dir, 'vocab_words.json'), 'w') as f:
         json.dump(word_to_ix, f)
 
     # dump indexed data
-    with open('../decoder/data/tokens_words.json', 'w') as f:
+    with open(os.path.join(save_dir, 'tokens_words.json'), 'w') as f:
         json.dump({'fr': ix_tokens_fr, 'en': ix_tokens_en}, f)
 
     # dumpindexed data
-    with open('../decoder/data/indexed_data_words.json', 'w') as f:
+    with open(os.path.join(save_dir, 'indexed_data_words.json'), 'w') as f:
         json.dump({'fr': sentence_i_fr, 'en': sentence_i_en}, f)
 
     # dump embedded data
-    with open('../decoder/data/embedded_data_words.json', 'w') as f:
+    with open(os.path.join(save_dir, 'embedded_data_words.json'), 'w') as f:
         json.dump({'fr': sentence_embeddings_fr, 'en': sentence_embeddings_en}, f)
 
     # dump word embeddings
-    with open('../decoder/data/embeddings_words.json', 'w') as outfile:
+    with open(os.path.join(save_dir, 'embeddings_words.json'), 'w') as outfile:
         json.dump({'word_to_vec': word_embeddings}, outfile)
 
 
