@@ -281,24 +281,18 @@ def main():
                 print('Writing predicted outputs to .txt file')
                 try:
                     with open(os.path.join(args.seq_output_path, f'seq_output_{epoch}.txt', 'w')) as out_file1:
-                        with open(os.path.join(args.seq_output_path, f'true_{epoch}.txt', 'w')) as out_file2:
-                            for batch_num, batch in enumerate(test_iter[0]):
+                        for batch_num, batch in enumerate(test_iter[0]):
+                            x = test_iter[2][batch_num].float()  # .to(device) # make the coordinates the predictors x
 
-                                x = test_iter[2][batch_num].float()  # .to(device) # make the coordinates the predictors x
-                                y = batch
-
-                                pred = sequence_gen(x.to(device))
-
-                                translated_batch = translate_batch(pred, ix_to_word)
-                                translated_y = translate_batch(y, ix_to_word)
-                                out_file1.write(translated_batch)
-                                out_file2.write(translated_y)
+                            pred = sequence_gen(x.to(device))
+                            translated_batch = translate_batch(pred, ix_to_word)
+                            out_file1.write(translated_batch)
 
                 except: continue
 
         # log in tensorboard
-            if writer is not None:
-                writer.add_scalar("Loss/val by epoch", loss, epoch)
+
+            writer.add_scalar("Loss/val by epoch", loss, epoch)
 
             if not best_valid_loss or loss < best_valid_loss:
                 best_valid_loss = loss
@@ -313,11 +307,13 @@ def main():
     # save Tensorboard logs and close writer
     writer.flush()
     writer.close()
-
-
-
-
-
+    
+    # write translated test batch to file
+    with open(os.path.join(args.seq_output_path, f'true_outputs.txt', 'w')) as out_file2:
+        for batch_num, batch in enumerate(test_iter[0]):
+            y = batch
+            translated_y = translate_batch(y, ix_to_word)
+            out_file2.write(translated_y)
 
 
 if __name__ == '__main__':

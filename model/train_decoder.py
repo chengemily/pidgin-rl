@@ -215,8 +215,7 @@ def main():
                 best_valid_loss = loss
 
             # log in tensorboard
-            if writer is not None:
-                writer.add_scalar("Loss/val by epoch", loss, epoch)
+            writer.add_scalar("Loss/val by epoch", loss, epoch)
 
     except KeyboardInterrupt:
         print("[Ctrl+C] Training stopped!")

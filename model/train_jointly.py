@@ -97,7 +97,7 @@ def seed_everything(seed, cuda=False):
         torch.cuda.manual_seed_all(seed)
 
 
-def train(model, data, optimizer, e_crit, d_crit, device, args, ix_to_word=None, epoch=None):
+def train(model, data, optimizer, e_crit, d_crit, device, args, ix_to_word=None, epoch=None, writer=None):
     model.train()
     t = time.time()
     n_batches = len(data[0])
@@ -119,6 +119,8 @@ def train(model, data, optimizer, e_crit, d_crit, device, args, ix_to_word=None,
 
         # Compute decoder loss and backprop
         dec_loss = d_crit(dec_pred, decoder_y.float())
+        writer.add_scalar("Decoder Loss/train over batches", dec_loss, epoch * n_batches + batch_num)
+
         decoder_loss += dec_loss
         optimizer.zero_grad()
         dec_loss.backward()
@@ -130,6 +132,8 @@ def train(model, data, optimizer, e_crit, d_crit, device, args, ix_to_word=None,
         with torch.autograd.set_detect_anomaly(True):
             # Compute loss
             enc_loss = e_crit(enc_pred, encoder_y)  # TODO - pred might be the wrong dimensions (switch 1 and 2)
+            writer.add_scalar("Encoder Loss/train over batches", enc_loss, epoch * n_batches + batch_num)
+
             encoder_loss += enc_loss
 
             # Backward pass and optimizer step
@@ -151,6 +155,9 @@ def train(model, data, optimizer, e_crit, d_crit, device, args, ix_to_word=None,
                 batch_num, len(data[0]), time.time() - t, encoder_loss / (batch_num), 100 ** 2 * decoder_loss / (batch_num * len(batch))), end='\r',
                 flush=True)
             t = time.time()
+
+    writer.add_scalar('Encoder loss/train over epochs', encoder_loss, epoch)
+    writer.add_scalar('Decoder loss/train over epochs', decoder_loss, epoch)
 
     return decoder_loss / (args.batch_size * len(data[0])), encoder_loss / (args.batch_size * len(data[0]))
 
@@ -189,6 +196,9 @@ def main():
     print("Found cuda: ", torch.cuda.is_available())
     device = torch.device("cpu") if not cuda else torch.device("cuda:0")
     seed_everything(seed=1337, cuda=cuda)
+
+    # init tensorboard writer
+    writer = SummaryWriter()
 
     # Load dataset iterators--------------------------------------------------------------------------------------------
     iters = load_data(args.dataset_path, args.embeds_path, args.lang, args.batch_size, device)
@@ -258,13 +268,19 @@ def main():
 
         for epoch in range(1, args.epochs + 1):
             # train(encoder, decoder, train_iter, enc_optimizer, dec_optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch)
-            train(model, train_iter, optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch)
+            train(model, train_iter, optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch, writer=writer)
             dec_loss, enc_loss = evaluate(model, val_iter, enc_criterion, dec_criterion, device, args, type='Valid')
+
+            writer.add_scalar("Decoder Loss/val by epoch", dec_loss, epoch)
+            writer.add_scalar("Encoder Loss/val by epoch", enc_loss, epoch)
+
 
             if not best_valid_dec_loss or dec_loss < best_valid_dec_loss:
                 best_valid_dec_loss = dec_loss
             if not best_valid_enc_loss or enc_loss < best_valid_enc_loss:
                 best_valid_enc_loss = enc_loss
+
+
 
     except KeyboardInterrupt:
         print("[Ctrl+C] Training stopped!")
