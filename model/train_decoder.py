@@ -127,6 +127,7 @@ def evaluate(model, data, criterion, device, args, type='Valid'):
     total_loss = 0
     with torch.no_grad():
         for batch_num, batch in enumerate(data[0]):
+            if batch_num >= len(data[0]): continue
             x = batch
             x_lens = data[1][batch_num]
             y = data[2][batch_num]
