@@ -29,7 +29,7 @@ def make_parser():
                         help='type of recurrent net [LSTM, GRU]')
     parser.add_argument('--emsize', type=int, default=20,
                         help='size of word embeddings')
-    parser.add_argument('--hidden', type=int, default=20,
+    parser.add_argument('--hidden', type=int, default=50,
                         help='number of hidden units for the RNN encoder')
     parser.add_argument('--nlayers', type=int, default=1,
                         help='number of layers of the RNN encoder')

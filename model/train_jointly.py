@@ -16,17 +16,17 @@ from train_decoder import *
 from encoder_v2 import *
 from train_encoder_v2 import *
 from test_seq_generation import *
+from agent import *
 
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch RNN Classifier w/ attention')
-    parser.add_argument('--decoder_save_path', type=str, default='saved_models/en_decoder/model_joint.pt')
-    parser.add_argument('--encoder_save_path', type=str, default='saved_models/en_encoder/model_joint.pt')
-    parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/en.csv')
+    parser.add_argument('--model_save_path', type=str, default='saved_models/en/model_joint.pt')
+    parser.add_argument('--dataset_path', type=str, default='../generate-data/data_final/train/en.csv')
     parser.add_argument('--lang', type=str, default='en')
-    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
+    parser.add_argument('--embeds_path', type=str, default='../tokenizer/data_final/indexed_data_words.json',
                         help='Embeddings path')
-    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
+    parser.add_argument('--vocab_path', type=str, default='../tokenizer/data_final/vocab_words.json',
                         help='Embeddings path')
 
     # Embedding params
@@ -47,11 +47,11 @@ def make_parser():
                         help="[DON'T] use tensorboard")
 
     # Decoder params
-    parser.add_argument('--decoder_hidden', type=int, default=20,
+    parser.add_argument('--decoder_hidden', type=int, default=50,
                         help='number of hidden units for the RNN encoder')
     parser.add_argument('--decoder_nlayers', type=int, default=1,
                         help='number of layers of the RNN encoder')
-    parser.add_argument('--decoder_lr', type=float, default=1e-3,
+    parser.add_argument('--decoder_lr', type=float, default=0.005,
                         help='initial learning rate')
     parser.add_argument('--decoder_wdecay', type=float, default=1e-3,
                         help='weight decay')
@@ -66,11 +66,11 @@ def make_parser():
     parser.add_argument('--use_attn', action='store_true', help='use dot prod attn')
 
     # Encoder params
-    parser.add_argument('--encoder_hidden', type=int, default=20,  # changing hidden to match emsize
+    parser.add_argument('--encoder_hidden', type=int, default=50,  # changing hidden to match emsize
                         help='number of hidden units for the RNN decoder')
     parser.add_argument('--encoder_nlayers', type=int, default=1,
                         help='number of layers of the RNN decoder')
-    parser.add_argument('--encoder_lr', type=float, default=1e-3,
+    parser.add_argument('--encoder_lr', type=float, default=0.005,
                         help='initial learning rate')
     parser.add_argument('--encoder_clip', type=float, default=5,
                         help='gradient clipping')
@@ -97,68 +97,45 @@ def seed_everything(seed, cuda=False):
         torch.cuda.manual_seed_all(seed)
 
 
-def train(encoder, decoder, data, e_optimizer, d_optimizer, e_criterion, d_criterion, device, args, ix_to_word=None, epoch=1, writer=None):
-    """
-    TODO: make this joint training
-    :param decoder: (nn.Module) decoder taking a string to a vector
-    :param encoder: (nn.Module) encoder taking a vec to a string
-    :param data: tuple of iterators of data (dataX, dataY)
-    :param optimizer:
-    :param criterion: loss function(pred, actual)
-    :param args:
-    :return:
-    """
-    # decoder.train()
-    encoder.train()
+def train(model, data, optimizer, e_crit, d_crit, device, args, ix_to_word=None, epoch=None):
+    model.train()
     t = time.time()
     n_batches = len(data[0])
     decoder_loss, encoder_loss = 0, 0
-    attn_maps = []
 
     for batch_num, batch in enumerate(data[0]):
-        # decoder.zero_grad()
-        encoder.zero_grad()
-
         # # Define data
-        # decoder_x = batch # Tensors of indices i.e. sequences
-        # decoder_x_len = data[1][batch_num] # Lengths of tensors of indices
-        # decoder_y = data[2][batch_num] # Tensors of outputs vectors
+        decoder_x = batch # Tensors of indices i.e. sequences
+        decoder_x_len = data[1][batch_num] # Lengths of tensors of indices
+        decoder_y = data[2][batch_num] # Tensors of outputs vectors
         encoder_x = data[2][batch_num].float()
         encoder_y = batch
-        #
-        # # Forward pass decoder
-        # dec_pred, _ = decoder(decoder_x.to(device), decoder_x_len)
-        #
-        # # Compute decoder loss and backprop
-        # dec_loss = d_criterion(dec_pred, decoder_y.float())
-        # decoder_loss += dec_loss
-        # d_optimizer.zero_grad()
-        # dec_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(decoder.parameters(), args.decoder_clip)
-        # d_optimizer.step() # will update for encoder as well
-        #
-        # # Log decoder loss
-        # print("[Batch]: {}/{} in {:.5f} seconds. Decoder Loss: {}".format(
-        #     batch_num, len(data[0]), time.time() - t, 100 ** 2 * decoder_loss / (batch_num * len(batch))), end='\r',
-        #     flush=True)
-        # print()
-        # t = time.time()
+
+        # Forward pass decoder
+        dec_pred = model.forward_decoder(decoder_x.to(device), decoder_x_len)
+
+        # Forward pass encoder
+        enc_pred = model.forward_encoder(encoder_x.to(device))
+
+        # Compute decoder loss and backprop
+        dec_loss = d_crit(dec_pred, decoder_y.float())
+        decoder_loss += dec_loss
+        optimizer.zero_grad()
+        dec_loss.backward()
+        optimizer.step() # will update for encoder as well
+
+        # Log decoder loss
+        t = time.time()
 
         with torch.autograd.set_detect_anomaly(True):
-            # Encoder fwd pass
-            enc_pred = encoder(encoder_x.to(device))
-
             # Compute loss
-            enc_loss = e_criterion(enc_pred, encoder_y)  # TODO - pred might be the wrong dimensions (switch 1 and 2)
-            if writer:
-                n_batches = len(data[0])
-                writer.add_scalar("Loss/train", enc_loss, epoch * n_batches + batch_num)
+            enc_loss = e_crit(enc_pred, encoder_y)  # TODO - pred might be the wrong dimensions (switch 1 and 2)
             encoder_loss += enc_loss
 
             # Backward pass and optimizer step
-            encoder_loss.backward()
-            torch.nn.utils.clip_grad_norm_(encoder.parameters(), args.encoder_clip)
-            e_optimizer.step()
+            optimizer.zero_grad()
+            enc_loss.backward()
+            optimizer.step()
 
             # print example sentences
             if ix_to_word and (batch_num % 100 == 0):
@@ -169,16 +146,36 @@ def train(encoder, decoder, data, e_optimizer, d_optimizer, e_criterion, d_crite
 
             # Detach pred?
             enc_pred.detach()
-            print("[Batch]: {}/{} in {:.5f} seconds. Encoder Loss: {}".format(
-                batch_num, len(data[0]), time.time() - t, encoder_loss / (batch_num * len(batch))), end='\r', flush=True)
-            print()
+
+            print("[Batch]: {}/{} in {:.5f} seconds. Encoder Loss: {}. Decoder Loss: {}".format(
+                batch_num, len(data[0]), time.time() - t, encoder_loss / (batch_num), 100 ** 2 * decoder_loss / (batch_num * len(batch))), end='\r',
+                flush=True)
+            t = time.time()
+
+    return decoder_loss / (args.batch_size * len(data[0])), encoder_loss / (args.batch_size * len(data[0]))
+
+def evaluate(model, data, e_crit, d_crit, device, args, type='Valid'):
+    model.eval()
+    t = time.time()
+    encoder_loss, decoder_loss = 0, 0
+    with torch.no_grad():
+        for batch_num, batch in enumerate(data[0]):
+            encoder_x = data[2][batch_num].float()
+            encoder_y = batch
+            decoder_x = batch
+            decoder_x_len = data[1][batch_num]
+            decoder_y = data[2][batch_num]
+
+            enc_pred = model.forward_encoder(encoder_x.to(device))
+            dec_pred = model.forward_decoder(decoder_x.to(device), decoder_x_len)
+            encoder_loss += float(e_crit(enc_pred, encoder_y))
+            decoder_loss += float(d_crit(dec_pred, decoder_y))
+            print("[Batch]: {}/{} in {:.5f} seconds".format(
+                batch_num, len(data[0]), time.time() - t), end='\r', flush=True)
             t = time.time()
 
     print()
-    # print("[Decoder Loss]: {:.5f}".format(100**2 * decoder_loss / (args.batch_size * len(data[0]))))
-    print("[Encoder Loss]: {:.5f}".format(100 ** 2 * encoder_loss / (args.batch_size * len(data[0]))))
-    return decoder_loss / (args.batch_size * len(data[0])), encoder_loss / (args.batch_size * len(data[0]))
-
+    return encoder_loss / (len(data[0]) * args.batch_size), decoder_loss / (len(data[0]) * args.batch_size * len(data[0][0]))
 
 def main():
     args = make_parser().parse_args()
@@ -225,48 +222,34 @@ def main():
 
     # Attention
     attention_dim = args.decoder_hidden if not args.decoder_bi else 2 * args.decoder_hidden
-    attention = Attention(attention_dim, attention_dim, attention_dim)
 
     # Fully connected network using either last hidden state or outputs
     dec_fc_layer_dims = [attention_dim, 10, 5]
     seq_len = len(train_iter[0][0][0]) # one sentence length
     if args.use_outputs: dec_fc_layer_dims = [seq_len * attention_dim, 500, 250, 50, 10]
-
-    # Complete pipeline and put on GPU
-    decoder = Vectorizer(embedding, decoder_rnn, dec_fc_layer_dims, attention, concat_out=args.use_outputs, use_attn=args.use_attn)
-    decoder.to(device)
+    fc_decoder = FC(dec_fc_layer_dims)
 
     # Define loss and optimizer
     dec_criterion = nn.MSELoss()
-    dec_optimizer = torch.optim.Adam(decoder.parameters(), args.decoder_lr, weight_decay=args.decoder_wdecay, amsgrad=True)
 
     # Define encoder model and pipeline---------------------------------------------------------------------------------
     # FCL
     enc_fc_layer_dims = [args.encoder_hidden]  # output of FC should be h0, first hidden input
+    fc_encoder = FC_Encoder(enc_fc_layer_dims)
 
     # RNN
-    encoder_rnn = Decoder(output_dims, args.encoder_hidden, embedding, rnn_type=args.model, nlayers=args.encoder_nlayers,
+    encoder_rnn = Decoder(output_dims, args.encoder_hidden, args.emsize, rnn_type=args.model, nlayers=args.encoder_nlayers,
                       dropout=args.encoder_drop)
 
     # Sequence Generator
     target_length = len(train_iter[0][0][0])
-    encoder = Sequence_Generator(embedding,
-                                      encoder_rnn,
-                                      enc_fc_layer_dims,
-                                      target_length,
-                                      output_dims,
-                                      args.batch_size,
-                                      output_dims,
-                                      rnn_type=args.model,
-                                      device=device)
-
-    # put all models on GPU
-    encoder.to(device)
 
     # Define loss and optimizer
-    enc_criterion = nn.NLLLoss(ignore_index=0)
-    enc_optimizer = torch.optim.Adam(encoder.parameters(), args.encoder_lr, amsgrad=True)
+    enc_criterion = nn.CrossEntropyLoss(ignore_index=0)
 
+    model = Agent(embedding, encoder_rnn, fc_encoder, decoder_rnn, fc_decoder, args.batch_size, output_dims, target_length, device)
+    optimizer = torch.optim.Adam(model.parameters(), args.encoder_lr, amsgrad=True)
+    model.to(device)
 
     # Training and validation loop--------------------------------------------------------------------------------------
     try:
@@ -274,9 +257,9 @@ def main():
         best_valid_enc_loss = None
 
         for epoch in range(1, args.epochs + 1):
-            train(encoder, decoder, train_iter, enc_optimizer, dec_optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch)
-            dec_loss = evaluate(decoder, val_iter, dec_criterion, device, args, type='Valid')
-            enc_loss = evaluate_encoder(encoder, val_iter, enc_criterion, device, args, type='Valid')
+            # train(encoder, decoder, train_iter, enc_optimizer, dec_optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch)
+            train(model, train_iter, optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch)
+            dec_loss, enc_loss = evaluate(model, val_iter, enc_criterion, dec_criterion, device, args, type='Valid')
 
             if not best_valid_dec_loss or dec_loss < best_valid_dec_loss:
                 best_valid_dec_loss = dec_loss
@@ -286,16 +269,14 @@ def main():
     except KeyboardInterrupt:
         print("[Ctrl+C] Training stopped!")
 
-    dec_test_loss = evaluate(decoder, test_iter, dec_criterion, device, args, type='Test')
-    enc_test_loss = evaluate(encoder, test_iter, enc_criterion, device, args, type='Test')
+    dec_test_loss, enc_test_loss = evaluate(model, test_iter, enc_criterion, dec_criterion, device, args, type='Test')
     print("best decoder val loss: ", 100**2 * best_valid_dec_loss)
     print("best encoder val loss: ", best_valid_enc_loss)
     print("decoder test loss: ", 100**2 * dec_test_loss)
     print("encoder test loss: ", enc_test_loss)
 
     # Save model
-    torch.save(encoder, args.encoder_save_path)
-    torch.save(decoder, args.decoder_save_path)
+    torch.save(model, args.model_save_path)
 
 if __name__ == '__main__':
     main()

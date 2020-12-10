@@ -5,13 +5,11 @@ import math
 
 
 class Decoder(nn.Module):
-    def __init__(self, output_dim, hidden_dim, emsize, embedding, rnn_type='GRU', nlayers=1, dropout=0.):
+    def __init__(self, output_dim, hidden_dim, emsize, rnn_type='GRU', nlayers=1, dropout=0.):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
-        self.embedding = embedding
         self.emsize = emsize
-        # self.dropout = nn.Dropout(dropout)
 
         # Define recurrent unit
         self.rnn_type = rnn_type
@@ -27,10 +25,13 @@ class Decoder(nn.Module):
         # self.softmax = nn.LogSoftmax(dim=0)  # dim=1 means take softmax across first dimension
 
     def forward(self, inp, h0):
-        # if LSTM, change hidden state
+        """
 
-        output = self.embedding(inp) #.view(-1, 1,
-                                          # self.hidden_dim)  # TODO - added a third dimension using unsqueeze, check later if errors
+        :param inp: embedded word
+        :param h0:
+        :return:
+        """
+        # if LSTM, change hidden state
         # input(output.size())
         # output = torch.ones([32, 1, 300], device=torch.device("cuda:0")).float()
         # print(f'embedded input: {output.shape}')
@@ -45,7 +46,7 @@ class Decoder(nn.Module):
         # else: print(f'hidden shape: {h0.size()}')
 
         # print(f'started rnn')
-        output, hidden = self.rnn(output, h0)  # TODO - make sure h0 is a tuple if using LSTM, one val if gru
+        output, hidden = self.rnn(inp, h0)  # TODO - make sure h0 is a tuple if using LSTM, one val if gru
         # print(f'output of RNN unit: {output}')
         # print(f'hidden output of RNN unit: {hidden}')
 
@@ -108,8 +109,6 @@ class Sequence_Generator(nn.Module):
         self.fc = FC_Encoder(fc_layer_dims)
         self.rnn_type = rnn_type # needed to toggle LSTM/GRU model
 
-        # param_size = sum([p.nelement() for p in self.parameters()]) # TODO - not sure where self.parameters is coming from
-        # print('Total param size: {}'.format(param_size))
 
     def forward(self, inp): # Input should be [x,y] value
         '''
@@ -121,13 +120,9 @@ class Sequence_Generator(nn.Module):
         # [x,y] through FC to get initial hidden state
         init_hidden = self.fc(inp).unsqueeze(0)  # .to(device)  # hidden dim is (num_layers, batch, hidden_size)
 
-        # print(f'initial hidden: {init_hidden}')
-        # print(f'initial hidden size: {init_hidden.size()}')
-
         # make compatible with LSTM
         if self.rnn_type == 'LSTM':
             init_hidden = (init_hidden, init_hidden)
-        # print(f'x after fcl, hidden batch : {init_hidden}')
 
         # init decoder hidden and input
         decoder_hidden = init_hidden
@@ -138,34 +133,18 @@ class Sequence_Generator(nn.Module):
         cls_matrix[:,1] = 1
         batch_output[:,:,0] = cls_matrix
 
-        # if isinstance(decoder_hidden, tuple):
-        #     print(f'decoder hidden: size: {decoder_hidden[0].size()}')
-        # else: print(f'decoder hidden size: {decoder_hidden.size()}')
-
         # run batch through rnn
         for di in range(1, self.target_length - 1):  # start with 1 to predict first non-cls word
             # print(f'rnn loop {di}, before self.decoder')
-            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)  # TODO - handle LSTMs here too
-            # input(decoder_output.size())
-            # print(f'rnn loop {di}, after self.decoder')
-            #
-            # print(f'decoder output: {decoder_output}')
-            # print(f'decoder output size: {decoder_output.size()}')
-            # print(f'y: {y[:, di]}')
-            # print(f'y size: {y[:, di].size()}')
-            # input(decoder_output.size())
+            decoder_output, decoder_hidden = self.decoder(self.embedding(decoder_input), decoder_hidden)  # TODO - handle LSTMs here too
 
-            # print(f'loss = {loss}')
             # get top index from softmax of previous layer
             topv, topi = decoder_output.topk(1)  # taking argmax, make sure dim is correct
             topv.detach()  # detaching for safe measure
             decoder_input = topi.view(-1, 1).detach()
 
             # add decoder output to outputs tensor
-            # input(decoder_output.squeeze().size())
             batch_output[:, :, di] = decoder_output.squeeze()
-
-        # TODO - detach anything here?
 
         return batch_output
 
