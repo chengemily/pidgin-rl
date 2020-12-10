@@ -31,30 +31,11 @@ class Decoder(nn.Module):
         :param h0:
         :return:
         """
-        # if LSTM, change hidden state
-        # input(output.size())
-        # output = torch.ones([32, 1, 300], device=torch.device("cuda:0")).float()
-        # print(f'embedded input: {output.shape}')
-        # output = self.dropout(output)
-
-        # output = F.relu(output)
-
-        # print(f'output shape: {output.size()}')
-
-        # if isinstance(h0, tuple):
-        # print(f'hidden shape: {h0[0].size()}')
-        # else: print(f'hidden shape: {h0.size()}')
-
-        # print(f'started rnn')
         output, hidden = self.rnn(inp, h0)  # TODO - make sure h0 is a tuple if using LSTM, one val if gru
-        # print(f'output of RNN unit: {output}')
-        # print(f'hidden output of RNN unit: {hidden}')
 
         # pass output through fcl and softmax
         output = self.out(output) # take output[0]?
-        # print(f'after self.out : {output}')
-        # output = self.softmax(output).float().squeeze()  # TODO - why output[0]?
-        # print(f'after sotmax : {output}')
+
         return output, hidden
 
 
@@ -65,7 +46,6 @@ class FC_Encoder(nn.Module):
         # print(f'fcl layer dims : {layer_dims}')
         self.layers = [nn.Linear(layer_dims[i], layer_dims[i + 1]).cuda() for i in range(len(layer_dims) - 1)]
         # print(self.layers)
-        # TODO - add activation functions between layers?
 
     def forward(self, input):
         inp = input

@@ -21,9 +21,10 @@ from agent import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch RNN Classifier w/ attention')
-    parser.add_argument('--model_save_path', type=str, default='saved_models/en/model_joint.pt')
-    parser.add_argument('--dataset_path', type=str, default='../generate-data/data_final/train/en.csv')
-    parser.add_argument('--lang', type=str, default='en')
+    parser.add_argument('--save_path', type=str, default='saved_models/fr/')
+    parser.add_argument('--dataset_path', type=str, default='../generate-data/data_final/train/fr.csv')
+    parser.add_argument('--lang', type=str, default='fr')
+    parser.add_argument('--tensorboard_suffix', type=str, default='model_pretrain_fr')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data_final/indexed_data_words.json',
                         help='Embeddings path')
     parser.add_argument('--vocab_path', type=str, default='../tokenizer/data_final/vocab_words.json',
@@ -37,7 +38,7 @@ def make_parser():
     # Global params
     parser.add_argument('--model', type=str, default='LSTM',
                         help='type of recurrent net [LSTM, GRU]')
-    parser.add_argument('--epochs', type=int, default=10,
+    parser.add_argument('--epochs', type=int, default=15,
                         help='upper epoch limit')
     parser.add_argument('--batch_size', type=int, default=32, metavar='N',
                         help='batch size')
@@ -119,7 +120,7 @@ def train(model, data, optimizer, e_crit, d_crit, device, args, ix_to_word=None,
 
         # Compute decoder loss and backprop
         dec_loss = d_crit(dec_pred, decoder_y.float())
-        writer.add_scalar("Decoder Loss/train over batches", dec_loss, epoch * n_batches + batch_num)
+        writer.add_scalar("Decoder Loss/train over batches", 100**2 * dec_loss / args.batch_size, epoch * n_batches + batch_num)
 
         decoder_loss += dec_loss
         optimizer.zero_grad()
@@ -142,24 +143,24 @@ def train(model, data, optimizer, e_crit, d_crit, device, args, ix_to_word=None,
             optimizer.step()
 
             # print example sentences
-            if ix_to_word and (batch_num % 100 == 0):
-                translated_batch = translate_batch(enc_pred, ix_to_word)
-                translated_y = translate_batch(encoder_y, ix_to_word)
-                print(f'Predicted sentences: \n{translated_batch[:3]}\n')
-                print(f'Actual sentence: \n{translated_y[:3]}\n\n')
+            # if ix_to_word and (batch_num % 100 == 0):
+            #     translated_batch = translate_batch(enc_pred, ix_to_word)
+            #     translated_y = translate_batch(encoder_y, ix_to_word)
+            #     print(f'Predicted sentences: \n{translated_batch[:3]}\n')
+            #     print(f'Actual sentence: \n{translated_y[:3]}\n\n')
 
             # Detach pred?
             enc_pred.detach()
 
             print("[Batch]: {}/{} in {:.5f} seconds. Encoder Loss: {}. Decoder Loss: {}".format(
-                batch_num, len(data[0]), time.time() - t, encoder_loss / (batch_num), 100 ** 2 * decoder_loss / (batch_num * len(batch))), end='\r',
+                batch_num, len(data[0]), time.time() - t, encoder_loss / (batch_num), 100 ** 2 * decoder_loss / (batch_num * args.batch_size)), end='\r',
                 flush=True)
             t = time.time()
 
     writer.add_scalar('Encoder loss/train over epochs', encoder_loss, epoch)
     writer.add_scalar('Decoder loss/train over epochs', decoder_loss, epoch)
 
-    return decoder_loss / (args.batch_size * len(data[0])), encoder_loss / (args.batch_size * len(data[0]))
+    return 100**2 * decoder_loss / (args.batch_size * len(data[0])), encoder_loss / (len(data[0]))
 
 def evaluate(model, data, e_crit, d_crit, device, args, type='Valid'):
     model.eval()
@@ -182,7 +183,7 @@ def evaluate(model, data, e_crit, d_crit, device, args, type='Valid'):
             t = time.time()
 
     print()
-    return encoder_loss / (len(data[0]) * args.batch_size), decoder_loss / (len(data[0]) * args.batch_size * len(data[0][0]))
+    return encoder_loss / (len(data[0])), 100**2 * decoder_loss / (args.batch_size * len(data[0]))
 
 def main():
     args = make_parser().parse_args()
@@ -198,7 +199,7 @@ def main():
     seed_everything(seed=1337, cuda=cuda)
 
     # init tensorboard writer
-    writer = SummaryWriter()
+    writer = SummaryWriter(comment=args.tensorboard_suffix)
 
     # Load dataset iterators--------------------------------------------------------------------------------------------
     iters = load_data(args.dataset_path, args.embeds_path, args.lang, args.batch_size, device)
@@ -263,36 +264,34 @@ def main():
 
     # Training and validation loop--------------------------------------------------------------------------------------
     try:
-        best_valid_dec_loss = None
-        best_valid_enc_loss = None
+        best_valid_dec_loss = np.inf
+        best_valid_enc_loss = np.inf
 
         for epoch in range(1, args.epochs + 1):
             # train(encoder, decoder, train_iter, enc_optimizer, dec_optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch)
             train(model, train_iter, optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch, writer=writer)
-            dec_loss, enc_loss = evaluate(model, val_iter, enc_criterion, dec_criterion, device, args, type='Valid')
+            enc_loss, dec_loss = evaluate(model, val_iter, enc_criterion, dec_criterion, device, args, type='Valid')
 
             writer.add_scalar("Decoder Loss/val by epoch", dec_loss, epoch)
             writer.add_scalar("Encoder Loss/val by epoch", enc_loss, epoch)
 
+            # save model
+            torch.save(model, os.path.join(args.save_path, f'model_{args.lang}_pretrained_epoch_{epoch}.pt'))
 
-            if not best_valid_dec_loss or dec_loss < best_valid_dec_loss:
+            if dec_loss < best_valid_dec_loss:
                 best_valid_dec_loss = dec_loss
-            if not best_valid_enc_loss or enc_loss < best_valid_enc_loss:
+            if enc_loss < best_valid_enc_loss:
                 best_valid_enc_loss = enc_loss
-
-
 
     except KeyboardInterrupt:
         print("[Ctrl+C] Training stopped!")
 
-    dec_test_loss, enc_test_loss = evaluate(model, test_iter, enc_criterion, dec_criterion, device, args, type='Test')
-    print("best decoder val loss: ", 100**2 * best_valid_dec_loss)
+    enc_test_loss, dec_test_loss = evaluate(model, test_iter, enc_criterion, dec_criterion, device, args, type='Test')
+    print("best decoder val loss: ", best_valid_dec_loss)
     print("best encoder val loss: ", best_valid_enc_loss)
-    print("decoder test loss: ", 100**2 * dec_test_loss)
+    print("decoder test loss: ", dec_test_loss)
     print("encoder test loss: ", enc_test_loss)
 
-    # Save model
-    torch.save(model, args.model_save_path)
 
 if __name__ == '__main__':
     main()

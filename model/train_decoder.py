@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 
 from datasets import load_data
 from decoder import *
@@ -17,9 +18,10 @@ from decoder import *
 
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch RNN Classifier w/ attention')
-    parser.add_argument('--save_path', type=str, default='saved_models/en_decoder')
-    parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/en.csv')
-    parser.add_argument('--lang', type=str, default='en')
+    parser.add_argument('--save_path', type=str, default='saved_models/fr_decoder')
+    parser.add_argument('--tensorboard_suffix', type=str, default='')
+    parser.add_argument('--dataset_path', type=str, default='../generate-data/data/train/fr.csv')
+    parser.add_argument('--lang', type=str, default='fr')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data/indexed_data.json',
                         help='Embeddings path')
     parser.add_argument('--vocab_path', type=str, default='../tokenizer/data/vocab.json',
@@ -39,7 +41,7 @@ def make_parser():
                         help='weight decay')
     parser.add_argument('--clip', type=float, default=5,
                         help='gradient clipping')
-    parser.add_argument('--epochs', type=int, default=10,
+    parser.add_argument('--epochs', type=int, default=15,
                         help='upper epoch limit')
     parser.add_argument('--batch_size', type=int, default=32, metavar='N',
                         help='batch size')
@@ -97,28 +99,24 @@ def train(model, data, optimizer, criterion, device, args, epoch, writer):
         # Forward pass
         pred, attn = model(x.to(device), x_len)
         attn_maps.append(attn)
-
-        # if batch_num % 100 == 0:
-        #     print(pred)
-        #     print(y)
-
+        
         # Compute loss
         loss = criterion(pred, y.float())
-        writer.add_scalar("Loss/train over batches", loss, epoch * n_batches + batch_num)
+        writer.add_scalar("Loss/train over batches", 100**2 * loss / args.batch_size, epoch * n_batches + batch_num)
         total_loss += loss
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
 
         print("[Batch]: {}/{} in {:.5f} seconds. Loss: {}".format(
-            batch_num, len(data[0]), time.time() - t, 100**2 * total_loss / (batch_num * len(batch))), end='\r', flush=True)
+            batch_num, len(data[0]), time.time() - t, 100**2 * total_loss / (batch_num * args.batch_size)), end='\r', flush=True)
         t = time.time()
 
 
     writer.add_scalar('Loss/train over epochs', total_loss, epoch)
     print()
-    print("[Loss]: {:.5f}".format(100**2 * total_loss / (args.batch_size * len(data[0]))))
-    return total_loss / (args.batch_size * len(data[0]))
+    print("[Loss]: {:.5f}".format(100**2 * total_loss / (len(data[0]) * args.batch_size)))
+    return 100**2 * total_loss / (len(data[0]) * args.batch_size)
 
 
 def evaluate(model, data, criterion, device, args, type='Valid'):
@@ -127,7 +125,6 @@ def evaluate(model, data, criterion, device, args, type='Valid'):
     total_loss = 0
     with torch.no_grad():
         for batch_num, batch in enumerate(data[0]):
-            if batch_num >= len(data[0]): continue
             x = batch
             x_lens = data[1][batch_num]
             y = data[2][batch_num]
@@ -143,8 +140,8 @@ def evaluate(model, data, criterion, device, args, type='Valid'):
                 print(y)
 
     print()
-    print("[{} loss]: {:.5f}".format(type, 100**2 * total_loss / (len(data[0]) * args.batch_size)))
-    return total_loss / (len(data[0]) * args.batch_size)
+    print("[{} loss]: {:.5f}".format(type, 100**2 * total_loss / (len(data[0])* args.batch_size)))
+    return 100**2 * total_loss / (len(data[0]) * args.batch_size)
 
 
 def main():
@@ -157,7 +154,7 @@ def main():
     seed_everything(seed=1337, cuda=cuda)
 
     # init tensorboard writer
-    writer = SummaryWriter()
+    writer = SummaryWriter(comment=args.tensorboard_suffix)
 
 
     # Load dataset iterators

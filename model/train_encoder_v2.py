@@ -17,6 +17,7 @@ from encoder_v2 import *
 def make_parser():
     parser = argparse.ArgumentParser(description='PyTorch Sequence Generator')
     parser.add_argument('--save_path', type=str, default='saved_models/en_encoder')
+    parser.add_argument('--tensorboard_suffix', type=str, default='')
     parser.add_argument('--seq_output_path', type=str, default='')
     parser.add_argument('--dataset_path', type=str, default='../generate-data/data_final/train/en.csv',
                         help='Dataset path')
@@ -30,7 +31,7 @@ def make_parser():
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=20,
                         help='size of word embeddings [Uses pretrained on 50, 100, 200, 300]')
-    parser.add_argument('--hidden', type=int, default=20,  
+    parser.add_argument('--hidden', type=int, default=50,
                         help='number of hidden units for the RNN decoder')
     parser.add_argument('--nlayers', type=int, default=1,
                         help='number of layers of the RNN decoder')
@@ -38,7 +39,7 @@ def make_parser():
                         help='initial learning rate')
     parser.add_argument('--clip', type=float, default=5,
                         help='gradient clipping')
-    parser.add_argument('--epochs', type=int, default=10,
+    parser.add_argument('--epochs', type=int, default=15,
                         help='upper epoch limit')
     parser.add_argument('--batch_size', type=int, default=32, metavar='N',
                         help='batch size')
@@ -92,16 +93,10 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
 
     for batch_num, batch in enumerate(data[0]):
         model.zero_grad()
-        # x is coordinate, y is output indices
-        # print(f'batch size: {len(batch)}')
 
+        # x is coordinate, y is output indices
         x = data[2][batch_num].float()  # .to(device) # make the coordinates the predictors x
         y = batch  # .to(device) # label (indices) is the word embeddings
-        # print(f'initial y:{y}')
-        #  print(f'initial y shape : {y.size()}')
-        # Forward pass
-        # print(f'initial x shape : {x.size()}')
-        # print(f'initial x  : {x}')
 
         with torch.autograd.set_detect_anomaly(True):
             # forward pass
@@ -109,7 +104,7 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
             pred = model(x.to(device))
 
             # Compute loss
-            loss = criterion(pred, y) # TODO - pred might be the wrong dimensions (switch 1 and 2)
+            loss = criterion(pred, y) # loss per word
             # add to tensorboard
             writer.add_scalar("Loss/train over batches", loss, epoch * n_batches +  batch_num)
             total_loss += loss
@@ -125,9 +120,6 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
                 print(f'Original instructions: \n{x[:3]}')
                 print(f'Predicted sentences: \n{translated_batch[:3]}\n')
                 print(f'Actual sentence: \n{translated_y[:3]}\n\n')
-                # print(f'Predicted Index: \n{pred[:3,:,:].topk(1,dim=1)[1]}')
-                # print(f'Actual Index: {y[:3]}\n\n')
-                
     
             # Detach pred?
             pred.detach()
@@ -139,7 +131,7 @@ def train_encoder(model, data, optimizer, criterion, device, args, ix_to_word, e
     writer.add_scalar('Loss/train over epochs', total_loss, epoch)
     print()
     print("[Loss]: {:.5f}".format(loss / len(data)))
-    return loss / (args.batch_size * len(data[0]))
+    return loss / (len(data[0])) # loss per word
 
 def evaluate_encoder(model, data, criterion, device, args, type='Valid'):
     model.eval()
@@ -161,8 +153,8 @@ def evaluate_encoder(model, data, criterion, device, args, type='Valid'):
                 print(y)
 
     print()
-    print("[{} loss]: {:.5f}".format(type, total_loss / (len(data[0]) * args.batch_size)))
-    return total_loss / (len(data[0]) * args.batch_size)
+    print("[{} loss]: {:.5f}".format(type, total_loss / len(data[0])))
+    return total_loss / len(data[0])
 
 
 def load_pretrained_vectors(vectors):
@@ -188,7 +180,7 @@ def main():
 
 
     # init tensorboard writer # TODO - maybe just always initialize writer
-    writer = SummaryWriter()
+    writer = SummaryWriter(comment=args.tensorboard_suffix)
 
     # get ix_to_word map
     ix_to_word = create_ix_to_vocab_map(args.vocab_path)
@@ -219,11 +211,6 @@ def main():
         len(train_iter[0]) * len(train_iter[0][0]), len(test_iter[0]) * len(test_iter[0][0])))
 
     # Load or define embedding layer
-    # if args.use_pretrained:
-    #     embedding = nn.Linear(args.emsize, args.emsize)
-    # else:
-    #     print(f'initialize new embedding: {len(vocab)}')
-    #     embedding = nn.Embedding(len(vocab), args.emsize, padding_idx=0)
     embedding = nn.Embedding(output_dims, args.emsize)  # 1st param - size of vocab, 2nd param - size of embedding vector
 
     # Define model pipeline
@@ -231,8 +218,8 @@ def main():
     fc_layer_dims = [int(args.hidden/ 2 + args.emsize / 2), args.hidden]  # output of FC should be h0, first hidden input
 
     # RNN
-    decoder = Decoder(output_dims, args.hidden, args.emsize, embedding, rnn_type=args.model, nlayers=args.nlayers,
-                      dropout=args.drop)  # TODO - more thoroughly check this
+    decoder = Decoder(output_dims, args.hidden, args.emsize, rnn_type=args.model, nlayers=args.nlayers,
+                      dropout=args.drop)  
 
     # Sequence Generator
     sequence_gen = Sequence_Generator(embedding,
@@ -250,7 +237,6 @@ def main():
     sequence_gen.to(device)
 
     # Define loss and optimizer
-    # criterion = nn.NLLLoss(ignore_index=0)
     criterion = nn.CrossEntropyLoss(ignore_index=0)
 
     optimizer = torch.optim.Adam(sequence_gen.parameters(), args.lr, amsgrad=True)
@@ -281,18 +267,24 @@ def main():
                 print('Writing predicted outputs to .txt file')
                 try:
                     with open(os.path.join(args.seq_output_path, f'seq_output_{epoch}.txt', 'w')) as out_file1:
-                        for batch_num, batch in enumerate(test_iter[0]):
-                            x = test_iter[2][batch_num].float()  # .to(device) # make the coordinates the predictors x
+                        with open(os.path.join(args.seq_output_path, f'true_{epoch}.txt', 'w')) as out_file2:
+                            for batch_num, batch in enumerate(test_iter[0]):
 
-                            pred = sequence_gen(x.to(device))
-                            translated_batch = translate_batch(pred, ix_to_word)
-                            out_file1.write(translated_batch)
+                                x = test_iter[2][batch_num].float()  # .to(device) # make the coordinates the predictors x
+                                y = batch
+
+                                pred = sequence_gen(x.to(device))
+
+                                translated_batch = translate_batch(pred, ix_to_word)
+                                translated_y = translate_batch(y, ix_to_word)
+                                out_file1.write(translated_batch)
+                                out_file2.write(translated_y)
 
                 except: continue
 
         # log in tensorboard
-
-            writer.add_scalar("Loss/val by epoch", loss, epoch)
+            if writer is not None:
+                writer.add_scalar("Loss/val by epoch", loss, epoch)
 
             if not best_valid_loss or loss < best_valid_loss:
                 best_valid_loss = loss
@@ -307,13 +299,11 @@ def main():
     # save Tensorboard logs and close writer
     writer.flush()
     writer.close()
-    
-    # write translated test batch to file
-    with open(os.path.join(args.seq_output_path, f'true_outputs.txt', 'w')) as out_file2:
-        for batch_num, batch in enumerate(test_iter[0]):
-            y = batch
-            translated_y = translate_batch(y, ix_to_word)
-            out_file2.write(translated_y)
+
+
+
+
+
 
 
 if __name__ == '__main__':
