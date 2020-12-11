@@ -59,18 +59,18 @@ class Sequence_Generator(nn.Module):
     def __init__(self,
                  embedding,
                  decoder,
-                 fc_layer_dims,
+                 fc_layers,
                  target_length,
                  output_dims,
                  batch_size,
                  vocab_size,
                  rnn_type='GRU',
-                 device=torch.device("cuda:0")):
+                 device=torch.device("cuda:0"), end2end=False):
         """
         Entire vector -> str model (the 'encoder' in our problem setup)
         :param embedding: embedder class, where embedding(input) returns a vector
         :param decoder: (nn.Module)
-        :param fc_layer_dims: dimensions of fully connected layers, EXCLUDING hidden dim
+        :param fc_layers: dimensions of fully connected layers, EXCLUDING hidden dim. Or a pretrained module
         :param target_length: the maximum length a sequence can be (max seq length)
         """
         super(Sequence_Generator, self).__init__()
@@ -79,6 +79,7 @@ class Sequence_Generator(nn.Module):
         self.output_dims = output_dims
         self.batch_size = batch_size
         self.vocab_size = vocab_size
+        self.end2end = end2end # in this case, use gumbel softmax
 
         # store device for creating decoder_input and outputs tensor
         self.device = device
@@ -86,15 +87,16 @@ class Sequence_Generator(nn.Module):
         # store all models needed
         self.embedding = embedding
         self.decoder = decoder
-        self.fc = FC_Encoder(fc_layer_dims)
+        self.fc = FC_Encoder(fc_layers) if not isinstance(fc_layers, nn.Module) else fc_layers
         self.rnn_type = rnn_type # needed to toggle LSTM/GRU model
 
+    def forward_normal(self, inp):
+        """
+        To use when not using end2end training.
+        :return:
+        """
+        assert not self.end2end
 
-    def forward(self, inp): # Input should be [x,y] value
-        '''
-        :param input: should be a [x,y] pair
-        :return: output_tensor: tensor of word predictions in indexed form
-        '''
         batch_output = torch.zeros(self.batch_size, self.vocab_size, self.target_length, device=self.device)
 
         # [x,y] through FC to get initial hidden state
@@ -110,13 +112,14 @@ class Sequence_Generator(nn.Module):
                                    device=self.device)  # init starting tokens, long is the same as ints, which are needed for embedding layer
         # add starting token to batch_output
         cls_matrix = torch.zeros(self.batch_size, self.vocab_size)
-        cls_matrix[:,1] = 1
-        batch_output[:,:,0] = cls_matrix
+        cls_matrix[:, 1] = 1
+        batch_output[:, :, 0] = cls_matrix
 
         # run batch through rnn
         for di in range(1, self.target_length - 1):  # start with 1 to predict first non-cls word
             # print(f'rnn loop {di}, before self.decoder')
-            decoder_output, decoder_hidden = self.decoder(self.embedding(decoder_input), decoder_hidden)  # TODO - handle LSTMs here too
+            decoder_output, decoder_hidden = self.decoder(self.embedding(decoder_input),
+                                                          decoder_hidden)  # TODO - handle LSTMs here too
 
             # get top index from softmax of previous layer
             topv, topi = decoder_output.topk(1)  # taking argmax, make sure dim is correct
@@ -127,6 +130,53 @@ class Sequence_Generator(nn.Module):
             batch_output[:, :, di] = decoder_output.squeeze()
 
         return batch_output
+
+    def forward_end2end(self, inp):
+        assert self.end2end
+
+        # each word in the output sentence is a length-V vector
+        batch_output = torch.zeros(self.batch_size, self.vocab_size, self.target_length, device=self.device)
+
+        # [x,y] through FC to get initial hidden state
+        init_hidden = self.fc(inp).unsqueeze(0)  # hidden dim is (num_layers, batch, hidden_size)
+
+        # make compatible with LSTM
+        if self.rnn_type == 'LSTM':
+            init_hidden = (init_hidden, init_hidden)
+
+        # init decoder hidden and input NOTE: just need to change inputs and outputs to be one-hot
+        decoder_hidden = init_hidden
+        decoder_input = torch.zeros(self.batch_size, self.vocab_size, dtype=torch.long,
+                                   device=self.device)  # init starting tokens, long is the same as ints, which are needed for embedding layer
+        decoder_input[:, 1] = 1 # one-hot vectors @ position 1.
+
+        # add starting token to batch_output
+        cls_matrix = torch.zeros(self.batch_size, self.vocab_size)
+        cls_matrix[:, 1] = 1
+        batch_output[:, :, 0] = cls_matrix
+
+        # run batch through rnn
+        for di in range(1, self.target_length - 1):  # start with 1 to predict first non-cls word
+            # print(f'rnn loop {di}, before self.decoder')
+            decoder_output, decoder_hidden = self.decoder(self.embedding(decoder_input),
+                                                          decoder_hidden)  # TODO - handle LSTMs here too
+            # Decoduer output is a length V vector.
+            input("decoder output one word vector size: {}".format(decoder_output.size()))
+            decoder_output = F.gumbel_softmax(decoder_output.squeeze(), hard=True)
+            decoder_input = decoder_output
+
+            input("decoder output one word vector size: {}".format(decoder_output.size()))
+            # add decoder output to outputs tensor
+            batch_output[:, :, di] = F.gumbel_softmax(decoder_output.squeeze(), hard=True)
+
+        return batch_output
+
+    def forward(self, inp): # Input should be [x,y] value
+        '''
+        :param input: should be a [x,y] pair
+        :return: output_tensor: tensor of word predictions in indexed form
+        '''
+        return self.forward_normal(inp) if not self.end2end else self.forward_end2end(inp)
 
 
 

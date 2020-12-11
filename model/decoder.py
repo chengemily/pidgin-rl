@@ -11,22 +11,21 @@ class Encoder(nn.Module):
         rnn_cell = getattr(nn, rnn_type) # get constructor from torch.nn
         self.batch_first = batch_first
         self.rnn = rnn_cell(
-            embed_dim, hidden_dim, nlayers, dropout=dropout, bidirectional=bidirectional, batch_first=batch_first
+            embed_dim, hidden_dim, nlayers, dropout=dropout, bidirectional=bidirectional, batch_first=True
         )
 
     def forward(self, inp, x_lengths, hidden=None):
         # print(x_lengths)
         # Pack padded sequence so padded items aren't shown to LSTM-- perf increase
-        # print("1st sentence:", inp[0])
-        # input()
+
         total_length = inp.size()[1]
-        # print(total_length)
+
         X = torch.nn.utils.rnn.pack_padded_sequence(inp, x_lengths, batch_first=self.batch_first, enforce_sorted=False)
         # print("Packed 1st sentence:", X[0])
-        # input()
+        # print("X: (CONFIRM BATCH SIZES)", X)
         out, hid = self.rnn(X, hidden) # since it's packed, "hid" is the last meaningful hidden state
         # print("Packed out: ", out[0])
-        # input()
+        # input(hid[0].size()) # should be 2 x 32 x 50
         # Unpack output
         out, out_len = torch.nn.utils.rnn.pad_packed_sequence(out, total_length=total_length, batch_first=self.batch_first, padding_value=0.0)
         # print("Packed first sentence: ", out[0])
@@ -75,26 +74,41 @@ class FC(nn.Module):
 
 
 class Vectorizer(nn.Module):
-    def __init__(self, embedding, encoder, fc_layer_dims, attention, concat_out=False, use_attn=False):
+    def __init__(self, embedding, encoder, fc_layers, attention, concat_out=False, use_attn=False, end2end=False):
         """
         Entire str -> vector model.
         :param embedding: embedder class, where embedding(input) returns a vector
         :param encoder: (nn.Module)
-        :param decoder_layer_dims: (list(int)) dimensions of decoder layer not including the output of 2
+        :param fc_layers: (list(int)) dimensions of fc layers not including the output of 2
         :param attention: (nn.Module) attention class
         """
         super(Vectorizer, self).__init__()
-        self.embedding = embedding
+        self.end2end = end2end
+        self.embedding = embedding if not self.end2end else self.make_embedding(embedding)
         self.encoder = encoder
         self.attention = attention
         self.concat_out = concat_out
         self.use_attn = use_attn
-        self.fc = FC(fc_layer_dims)
+        self.fc = FC(fc_layers) if not isinstance(fc_layers, nn.Module) else fc_layers
 
         param_size = sum([p.nelement() for p in self.parameters()])
         print('Total param size: {}'.format(param_size))
 
+    def make_embedding(self, embedding):
+        """
+        Creates an embedding layer depending on whether the module is end2end.
+        :param embedding: (nn.Embedding)
+        :return: an nn linear layer with the weights as in nn.embedding
+        """
+        weights = embedding.weight  # V x emsize
+        new_embed = torch.nn.Linear(weights.size()[0], weights.size()[1])
+        with torch.no_grad():
+            new_embed.weight.copy_(torch.transpose(weights, 0, 1))
+
+        return new_embed
+
     def forward(self, input, x_lengths):
+
         outputs, hidden = self.encoder(self.embedding(input), x_lengths)
 
         if isinstance(hidden, tuple): # LSTM

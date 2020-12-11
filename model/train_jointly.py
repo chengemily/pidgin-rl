@@ -30,10 +30,13 @@ def make_parser():
     parser.add_argument('--vocab_path', type=str, default='../tokenizer/data_final/vocab_words.json',
                         help='Embeddings path')
 
+    # Loading pretrained model
+    parser.add_argument('--load_path', type=str, default="", help="model loading path")
+
     # Embedding params
+    parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=20,
                         help='size of word embeddings')
-    parser.add_argument('--use_pretrained', action='store_true')
 
     # Global params
     parser.add_argument('--model', type=str, default='LSTM',
@@ -185,6 +188,48 @@ def evaluate(model, data, e_crit, d_crit, device, args, type='Valid'):
     print()
     return encoder_loss / (len(data[0])), 100**2 * decoder_loss / (args.batch_size * len(data[0]))
 
+
+def build_model_from_scratch(args, seq_len, target_length, output_dims, device):
+    """
+    Builds model from scratch
+    :param args:
+    :return:
+    """
+    # Load embedding, to be shared -------------------------------------------------------------------------------------
+    if args.use_pretrained:
+        embedding = nn.Linear(args.emsize, args.emsize)
+    else:
+        with open(args.vocab_path, 'r') as f:
+            vocab = json.load(f)
+        embedding = nn.Embedding(len(vocab), args.emsize, padding_idx=0)
+
+    # Define decoder model pipeline ------------------------------------------------------------------------------------
+    # Decoder RNN module
+    decoder_rnn = Encoder(args.emsize, args.decoder_hidden, rnn_type=args.model, nlayers=args.decoder_nlayers,
+                          dropout=args.decoder_drop, bidirectional=args.decoder_bi)
+
+    # Attention
+    attention_dim = args.decoder_hidden if not args.decoder_bi else 2 * args.decoder_hidden
+
+    # Fully connected network using either last hidden state or outputs
+    dec_fc_layer_dims = [attention_dim, 10, 5]
+    if args.use_outputs: dec_fc_layer_dims = [seq_len * attention_dim, 500, 250, 50, 10]
+    fc_decoder = FC(dec_fc_layer_dims)
+
+    # Define encoder model and pipeline---------------------------------------------------------------------------------
+    # FCL
+    enc_fc_layer_dims = [args.encoder_hidden]  # output of FC should be h0, first hidden input
+    fc_encoder = FC_Encoder(enc_fc_layer_dims)
+
+    # RNN
+    encoder_rnn = Decoder(output_dims, args.encoder_hidden, args.emsize, rnn_type=args.model,
+                          nlayers=args.encoder_nlayers,
+                          dropout=args.encoder_drop)
+
+    # Sequence Generator
+    return Agent(embedding, encoder_rnn, fc_encoder, decoder_rnn, fc_decoder, args.batch_size, output_dims,
+                  target_length, device)
+
 def main():
     args = make_parser().parse_args()
     print_args(args)
@@ -217,48 +262,19 @@ def main():
     # get size of vocab
     vocab = load_json(args.vocab_path)
     output_dims = len(vocab)
-
-    # Load embedding, to be shared -------------------------------------------------------------------------------------
-    if args.use_pretrained:
-        embedding = nn.Linear(args.emsize, args.emsize)
-    else:
-        with open(args.vocab_path, 'r') as f:
-            vocab = json.load(f)
-        embedding = nn.Embedding(len(vocab), args.emsize, padding_idx=0)
-
-    # Define decoder model pipeline ------------------------------------------------------------------------------------
-    # Decoder RNN module
-    decoder_rnn = Encoder(args.emsize, args.decoder_hidden, rnn_type=args.model, nlayers=args.decoder_nlayers,
-                      dropout=args.decoder_drop, bidirectional=args.decoder_bi)
-
-    # Attention
-    attention_dim = args.decoder_hidden if not args.decoder_bi else 2 * args.decoder_hidden
-
-    # Fully connected network using either last hidden state or outputs
-    dec_fc_layer_dims = [attention_dim, 10, 5]
-    seq_len = len(train_iter[0][0][0]) # one sentence length
-    if args.use_outputs: dec_fc_layer_dims = [seq_len * attention_dim, 500, 250, 50, 10]
-    fc_decoder = FC(dec_fc_layer_dims)
-
-    # Define loss and optimizer
-    dec_criterion = nn.MSELoss()
-
-    # Define encoder model and pipeline---------------------------------------------------------------------------------
-    # FCL
-    enc_fc_layer_dims = [args.encoder_hidden]  # output of FC should be h0, first hidden input
-    fc_encoder = FC_Encoder(enc_fc_layer_dims)
-
-    # RNN
-    encoder_rnn = Decoder(output_dims, args.encoder_hidden, args.emsize, rnn_type=args.model, nlayers=args.encoder_nlayers,
-                      dropout=args.encoder_drop)
-
-    # Sequence Generator
+    seq_len = len(train_iter[0][0][0])  # one sentence length
     target_length = len(train_iter[0][0][0])
 
     # Define loss and optimizer
+    dec_criterion = nn.MSELoss()
     enc_criterion = nn.CrossEntropyLoss(ignore_index=0)
 
-    model = Agent(embedding, encoder_rnn, fc_encoder, decoder_rnn, fc_decoder, args.batch_size, output_dims, target_length, device)
+    # Either load pretrained model or build one from scratch
+    if len(args.load_path):
+        print("Loading pretrained model: ", args.load_path)
+        model = torch.load(args.load_path, map_location=device)
+    else:
+        model = build_model_from_scratch(args, seq_len, target_length, output_dims, device)
     optimizer = torch.optim.Adam(model.parameters(), args.encoder_lr, amsgrad=True)
     model.to(device)
 
@@ -268,7 +284,6 @@ def main():
         best_valid_enc_loss = np.inf
 
         for epoch in range(1, args.epochs + 1):
-            # train(encoder, decoder, train_iter, enc_optimizer, dec_optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch)
             train(model, train_iter, optimizer, enc_criterion, dec_criterion, device, args, ix_to_word=IX_TO_WORD, epoch=epoch, writer=writer)
             enc_loss, dec_loss = evaluate(model, val_iter, enc_criterion, dec_criterion, device, args, type='Valid')
 
@@ -276,7 +291,7 @@ def main():
             writer.add_scalar("Encoder Loss/val by epoch", enc_loss, epoch)
 
             # save model
-            torch.save(model, os.path.join(args.save_path, f'model_{args.lang}_pretrained_epoch_{epoch}.pt'))
+            torch.save(model, os.path.join(args.save_path, f'{args.tensorboard_suffix}_epoch_{epoch}.pt'))
 
             if dec_loss < best_valid_dec_loss:
                 best_valid_dec_loss = dec_loss
