@@ -21,7 +21,7 @@ def make_parser():
                        help='Can be en or fr')
     parser.add_argument('--model_path', type=str, default='../model/saved_models/en/model_en_pretrained_epoch_1.pt',
                        help='change model name to get different checkpoints')
-    parser.add_argument('--dataset_dir', type=str, default='../generate-data/data_final/train,
+    parser.add_argument('--dataset_dir', type=str, default='../generate-data/data_final/train',
                         help='Dataset directory')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data_final/indexed_data_words.json',
                         help='Embeddings path')

@@ -24,8 +24,6 @@ from scipy.spatial import distance_matrix
 
 import pandas as pd
 
-
-
 from datasets import *
 from decoder import *
 from encoder_v2 import *
@@ -134,19 +132,6 @@ def vis_distance_matrix(df, classes, title, cos=True):
 
     return dists
 
-
-# Center embeddings
-def center_embeds(embedding_of_all_V, monolingual_indices):
-    """
-    Centers embeddings with respect
-    :param embedding_of_all_V:
-    :return:
-    """
-
-# Can we learn word alignments in an unsupervised way?
-
-
-
                         
 
 def main():
@@ -158,17 +143,19 @@ def main():
     DATASET_PATH = '../generate-data/data_final/train/{}.csv'.format(LANG)
     INDEXED_DATA_PATH = args.embeds_path # dataset indexed
     VOCAB_PATH = args.vocab_path
-    N = args.last_epoch # last epoch we want
-    model_type = args.model_type  # Decoder or encoder
-    checkpoint = args.checkpoint
-
-
+    epochs = [1, 7, 15]
+    LOAD_PATHS = [
+        "saved_models/en/model_en_pretrained_epoch_15.pt",
+        "saved_models/fr/model_fr_pretrained_epoch_15.pt",
+        "saved_models/en_transfer/model_fr_to_en_epoch_15.pt",
+        "saved_models/fr_transfer/model_en_to_fr_epoch_15.pt"
+    ]
     # Load Data
     dataset = pd.read_csv(DATASET_PATH).drop(columns=["Unnamed: 0"])
 
     with open(VOCAB_PATH) as f:
-        words = json.load(f)
-    words = pd.DataFrame.from_dict(words, orient='index', columns=["idx"]).reset_index()
+        word_dict = json.load(f)
+    words = pd.DataFrame.from_dict(word_dict, orient='index', columns=["idx"]).reset_index()
     words.drop(columns=["idx"], inplace=True)
     words.rename(columns={"index":"label"}, inplace=True)
 
@@ -176,20 +163,18 @@ def main():
 
     VOCAB_SIZE = len(words)
 
+    # English embeddings and french embeddings
     en_idx = [0, 1, 2, 6, 18, 19] + list(range(37, VOCAB_SIZE))
     fr_idx = list(range(37))
-
-    {"<pad>": 0, "<cls>": 1, "<eos>": 2, "allez": 3, "de": 4, "cinquante": 5, "-": 6, "huit": 7, "\u00e0": 8, "droite": 9, "soixante": 10, "et": 11, "onze": 12, "gauche": 13, "puis": 14, "descendez": 15, "quatre": 16, "vingt": 17, "six": 18, ",": 19, "montez": 20, "quinze": 21, "trente": 22, "un": 23, "douze": 24, "neuf": 25, "quarante": 26, "dix": 27, "deux": 28, "sept": 29, "quatorze": 30, "vingts": 31, "cinq": 32, "trois": 33, "treize": 34, "seize": 35, "cent": 36, "move": 37, "forty": 38, "eight": 39, "to": 40, "the": 41, "left": 42, "then": 43, "go": 44, "down": 45, "ten": 46, "up": 47, "eleven": 48, "seventy": 49, "right": 50, "and": 51, "twenty": 52, "thirty": 53, "seven": 54, "sixty": 55, "five": 56, "nineteen": 57, "one": 58, "twelve": 59, "fifty": 60, "nine": 61, "eighty": 62, "three": 63, "ninety": 64, "two": 65, "seventeen": 66, "sixteen": 67, "four": 68, "fourteen": 69, "eighteen": 70, "fifteen": 71, "hundred": 72, "thirteen": 73}
 
     # Load Model
     # Specifies the device, language, model type, and number of epochs, then loads in each checkpoint.
     device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
-    MODEL_CHECKPOINTS = ["../model/saved_models/{}_{}/model_epoch_{}.pt".format(
-        LANG, model_type, i) for i in range(1, N)]
-    MODELS = [torch.load(checkpoint, map_location=device) for checkpoint in MODEL_CHECKPOINTS]
+    MODELS = [torch.load(SAVE_PATH, map_location=device) for SAVE_PATH in SAVE_PATHS]
     
     # Get pd dataframe of embedding for each word
     EMBEDS = [list(model.children())[:-1][0] for model in MODELS]
+    print(EMBEDS)
     embed = EMBEDS[-1]
     to_embed = torch.tensor(range(VOCAB_SIZE), dtype=torch.long, device=device)
     embeddings = embed(to_embed).cpu().detach().numpy()

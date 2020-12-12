@@ -45,6 +45,7 @@ def make_parser():
     parser.add_argument('--use_pretrained', action='store_true')
     parser.add_argument('--emsize', type=int, default=20,
                         help='size of word embeddings')
+    parser.add_argument('--clip', type=float, default=5)
 
     # Global params
     parser.add_argument('--model', type=str, default='LSTM',
@@ -84,18 +85,29 @@ def get_lengths(seq, device):
     """
     # print(seq.size())
     eos = torch.zeros(seq.size()[1], dtype=torch.float, device=torch.device('cuda:0'))
-    eos[2] = 1
     lengths = []
     for sentence in seq:
         for i, word in enumerate(torch.transpose(sentence, 0, 1)):
-            if torch.equal(word, eos) or i == seq.size()[-1] - 1:
+            if torch.argmax(word) == 2 or i == seq.size()[-1] - 1:
                 lengths.append(i + 1)
+                # print(lengths)
+                # input()
                 break
     # print(len(lengths))
+    # print("LENGTHS", lengths)
     return torch.tensor(lengths, device=device)
 
 
-def train(model_1, model_2, data_1, data_2, model_1_optimizer, model_2_optimizer, crit, device, args, epoch=None, writer=None):
+def print_sentences(pred, inp, model, ix_to_word):
+    # print example sentences
+    # input(pred.size())
+    # pred = torch.argmax(pred, dim=1)
+    translated_batch = translate_batch(pred, ix_to_word)
+    print(f'Original instructions: \n{inp[:3]}')
+    print(f'Predicted sentences: \n{translated_batch[:3]}\n')
+
+
+def train(model_1, model_2, data_1, data_2, model_1_optimizer, model_2_optimizer, crit, device, args, ix_to_word, epoch=None, writer=None):
     """
 
     :param model_1:
@@ -116,63 +128,85 @@ def train(model_1, model_2, data_1, data_2, model_1_optimizer, model_2_optimizer
     t = time.time()
     total_loss_1, total_loss_2 = 0, 0
     n_batches = min(len(data_1[0]), len(data_2[0]))
+    # embed_1_weight = model_1.embedding.weight.clone()
 
-    with torch.no_grad():
-        for batch_num in range(n_batches):
-            # Original vectors
-            model_1_x = data_1[2][batch_num].float()
-            model_1_y = data_1[2][batch_num].float()
-            model_2_x = data_2[2][batch_num].float()  # get [x,y] vectors for both models
-            model_2_y = data_2[2][batch_num].float()
+    for batch_num in range(n_batches):
+        # Original vectors
+        model_1_x = data_1[2][batch_num].float()
+        model_1_y = data_1[2][batch_num].float()
+        model_2_x = data_2[2][batch_num].float()  # get [x,y] vectors for both models
+        model_2_y = data_2[2][batch_num].float()
 
-            # Produce strings
-            model_1_str = model_1.forward_encoder(model_1_x.to(device))
-            model_2_str = model_1.forward_encoder(model_2_x.to(device))
+        # Produce strings
+        model_1_str = model_1.forward_encoder(model_1_x.to(device))
+        model_2_str = model_2.forward_encoder(model_2_x.to(device))
 
-            # convert to indices
-            seq_len_1 = get_lengths(model_1_str, device)
-            seq_len_2 = get_lengths(model_2_str, device)
+        # convert to indices
+        seq_len_1 = get_lengths(model_1_str, device)
+        seq_len_2 = get_lengths(model_2_str, device)
 
-            # Decode into vectors
-            # input(model_1_str.size())
-            model_1_pred = model_2.forward_decoder(model_1_str, seq_len_1)
-            model_2_pred = model_1.forward_decoder(model_2_str, seq_len_2)
+        # Decode into vectors
+        # input(model_1_str.size())
+        model_1_pred = model_2.forward_decoder(model_1_str, seq_len_1)
+        model_2_pred = model_1.forward_decoder(model_2_str, seq_len_2)
 
-            # Compute loss
-            loss_1 = Variable(crit(model_1_pred, model_1_y), requires_grad=True)
-            loss_2 = Variable(crit(model_2_pred, model_2_y), requires_grad=True)
-            total_loss_1 += loss_1
-            total_loss_2 += loss_2
-            writer[0].add_scalar("Model 1 Loss/train over batches", 100 ** 2 * loss_1 / args.batch_size,
-                              epoch * n_batches + batch_num)
-            writer[1].add_scalar("Model 2 Loss/train over batches", 100 ** 2 * loss_2 / args.batch_size,
-                              epoch * n_batches + batch_num)
+        # Compute loss
+        loss_1 = crit(model_1_pred, model_1_y)
+        loss_2 = crit(model_2_pred, model_2_y)
+        total_loss_1 += loss_1
+        total_loss_2 += loss_2
+        writer[0].add_scalar("Original {} Model Loss/train over batches".format(args.lang_1), 100 ** 2 * loss_1 / args.batch_size,
+                          epoch * n_batches + batch_num)
+        writer[1].add_scalar("Original {} Model Loss/train over batches".format(args.lang_2), 100 ** 2 * loss_2 / args.batch_size,
+                          epoch * n_batches + batch_num)
 
-            # Backprop
-            # input('HERE HELLO')
-            model_1_optimizer.zero_grad()
-            model_2_optimizer.zero_grad()
-            loss_1.backward()
-            loss_2.backward()
-            model_1_optimizer.step()
-            model_2_optimizer.step()
+        # Backprop
+        model_1_optimizer.zero_grad()
+        loss_1.backward()
+        torch.nn.utils.clip_grad_norm_(model_1.parameters(), args.clip)
+        loss_2.backward()
+        torch.nn.utils.clip_grad_norm_(model_2.parameters(), args.clip)
+        model_1_optimizer.step()
 
-            print("[Batch]: {}/{} in {:.5f} seconds. Starting {} Loss: {}. Starting {} Loss: {}".format(
-                batch_num, len(data_1[0]), time.time() - t,
-                args.lang_2,
-                100 ** 2 * loss_2 / (batch_num * args.batch_size),
-                args.lang_1,
-                100 ** 2 * loss_1 / (batch_num * args.batch_size)),
-                end='\r',
-                flush=True)
-            t = time.time()
+        # new_embed_w = model_1.embedding.weight
+        # for name, param in list(model_1.named_parameters()):
+        #     print("Param: ", name)
+        #     print("PAram grad is not none: ", param.grad is not None)
+        # input()
+        # print([param.grad is not None for param in list(model_1.parameters())])
+        # print([param.grad is not None for param in list(model_2.parameters())])
+        # print([param.requires_grad for param in list(model_1.parameters())])
+        # print([param.requires_grad for param in list(model_2.parameters())])
+        # assert not torch.equal(new_embed_w, embed_1_weight)
+        # embed_1_weight = new_embed_w
+
+        # print example sentences
+        if batch_num % 1000 == 0:
+            print("SENTENCES FOR {}".format(args.lang_1))
+            print_sentences(model_1_str, model_1_x, model_1, ix_to_word)
+            print("PREDIECTIONS FOR {}".format(args.lang_1))
+            print(model_1_pred[:3])
+
+            print("\nSENTENCES FOR {}".format(args.lang_2))
+            print_sentences(model_2_str, model_2_x, model_2, ix_to_word)
+            print("PREDIECTIONS FOR {}".format(args.lang_2))
+            print(model_2_pred[:3])
 
 
+        print("[Batch]: {}/{} in {:.5f} seconds. Starting {} Loss: {}. Starting {} Loss: {}".format(
+            batch_num, len(data_1[0]), time.time() - t,
+            args.lang_2,
+            100 ** 2 * loss_2 / (args.batch_size),
+            args.lang_1,
+            100 ** 2 * loss_1 / (args.batch_size)),
+            end='\r',
+            flush=True)
+        t = time.time()
 
     writer[0].add_scalar('Model 1 loss/train over epochs', total_loss_1, epoch)
     writer[1].add_scalar('Model 2 loss/train over epochs', total_loss_2, epoch)
 
-    return 100**2 * total_loss_1 / (args.batch_size * len(data[0])), 100**2 * total_loss_2 / (args.batch_size *len(data[0]))
+    return 100**2 * total_loss_1 / (args.batch_size * n_batches), 100**2 * total_loss_2 / (args.batch_size *n_batches)
 
 
 def evaluate(model_1, model_2, data_1, data_2, crit, device, args, type='Valid'):
@@ -191,9 +225,10 @@ def evaluate(model_1, model_2, data_1, data_2, crit, device, args, type='Valid')
     model_1.eval()
     model_2.eval()
     t = time.time()
+    n_batches = min(len(data_1[0]), len(data_2[0]))
     loss_1, loss_2 = 0, 0
     with torch.no_grad():
-        for batch_num, batch in enumerate(data_1[0]):
+        for batch_num in range(n_batches):
             # Original vectors
             model_1_x = data_1[2][batch_num].float()
             model_1_y = data_1[2][batch_num].float()
@@ -205,12 +240,8 @@ def evaluate(model_1, model_2, data_1, data_2, crit, device, args, type='Valid')
             model_2_str = model_1.forward_encoder(model_2_x.to(device))
 
             # convert to indices
-            model_i_1 = model_1_str.topk(1)  # taking argmax, make sure dim is correct
-            model_i_1 = model_i_1.view(-1, 1).detach().squeeze()
-            model_i_2 = model_2_str.topk(1)  # taking argmax, make sure dim is correct
-            model_i_2 = model_i_2.view(-1, 1).detach().squeeze()
-            seq_len_1 = [torch.min([i for i in range(len(sentence)) if sentence[i] == 2]) for sentence in model_i_1]
-            seq_len_2 = [torch.min([i for i in range(len(sentence)) if sentence[i] == 2]) for sentence in model_i_2]
+            seq_len_1 = get_lengths(model_1_str, device)
+            seq_len_2 = get_lengths(model_2_str, device)
 
             # Decode into vectors
             model_1_pred = model_2.forward_decoder(model_1_str, seq_len_1)
@@ -223,7 +254,7 @@ def evaluate(model_1, model_2, data_1, data_2, crit, device, args, type='Valid')
             t = time.time()
 
     print()
-    return 100**2 * loss_1 / (args.batch_size * len(data[0])), 100**2 * loss_2 / (args.batch_size * len(data[0]))
+    return 100**2 * loss_1 / (args.batch_size * n_batches), 100**2 * loss_2 / (args.batch_size * n_batches)
 
 
 def main():
@@ -265,7 +296,7 @@ def main():
 
     # Define criterion, optimizer
     criterion = nn.MSELoss() # We will be using the same MSE throughout.
-    model_1_optimizer = torch.optim.Adam(model_1.parameters(), args.lr, amsgrad=True)
+    model_1_optimizer = torch.optim.Adam(chain(model_1.parameters(), model_2.parameters()), args.lr, amsgrad=True)
     model_2_optimizer = torch.optim.Adam(model_2.parameters(), args.lr, amsgrad=True)
 
     # Training and validation loop--------------------------------------------------------------------------------------
@@ -274,7 +305,7 @@ def main():
         best_loss_2 = np.inf
 
         for epoch in range(1, args.epochs + 1):
-            train(model_1, model_2, train_iter_1, train_iter_2, model_1_optimizer, model_2_optimizer, criterion, device, args,
+            train(model_1, model_2, train_iter_1, train_iter_2, model_1_optimizer, model_2_optimizer, criterion, device, args, IX_TO_WORD,
                   epoch=epoch, writer=[writer_1, writer_2])
             loss_1, loss_2 = evaluate(model_1, model_2, val_iter_1, val_iter_2, criterion, device, args, type='Valid')
 
@@ -283,7 +314,7 @@ def main():
 
             # save model
             torch.save(model_1, os.path.join(args.save_path, f'{args.tensorboard_suffix_1}_epoch_{epoch}.pt'))
-            torch.save(model_1, os.path.join(args.save_path, f'{args.tensorboard_suffix_2}_epoch_{epoch}.pt'))
+            torch.save(model_2, os.path.join(args.save_path, f'{args.tensorboard_suffix_2}_epoch_{epoch}.pt'))
 
             if loss_1 < best_loss_1:
                 best_loss_1 = loss_1

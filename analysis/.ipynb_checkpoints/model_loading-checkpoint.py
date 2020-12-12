@@ -17,7 +17,7 @@ from train_encoder_v2 import *
 
 
 
-def _load_modules_from_joint(model_path):
+def _load_modules_from_joint(model_path, device):
     '''
     Load components from joint model
     '''
@@ -26,7 +26,7 @@ def _load_modules_from_joint(model_path):
     return embedding, encoder, fc_encoder, decoder, fc
 
 
-def load_sequence_generator_and_vectorizer(model_path):
+def load_sequence_generator_and_vectorizer(model_path, data, device):
     '''
     Creates Sequence Generator and Vectorizer objects from pre-trained
     components trained using joint training
@@ -34,14 +34,14 @@ def load_sequence_generator_and_vectorizer(model_path):
     param: model_path points to saved pytorch model
     return: sequenece generator, vectorizer
     '''
-    embedding, encoder, fc_encoder, decoder, fc = _load_modules_from_joint(model_path)
+    embedding, encoder, fc_encoder, decoder, fc = _load_modules_from_joint(model_path, device)
     
     # get input params for seq generator and vectorizer
     rnn_encoder, linear_encoder = tuple(encoder.children())
     rnn_type = type(rnn_encoder)
     if isinstance(rnn_encoder, torch.nn.modules.rnn.LSTM): rnn_type = 'LSTM'
     else:rnn_type = 'GRU'
-    TARGET_LENGTH = len(test_iter[0][0][0])
+    TARGET_LENGTH = len(data[0][0][0])
     output = VOCAB_SIZE
     rnn_decoder = list(decoder.children())[0]
     
@@ -64,4 +64,5 @@ def load_sequence_generator_and_vectorizer(model_path):
 
 
 if __name__=="__main__":
-    pass
+    model_path = "../model/saved_models/en/model_en_pretrained_epoch_10.pt"
+    load_sequence_generator_and_vectorizer(model_path)

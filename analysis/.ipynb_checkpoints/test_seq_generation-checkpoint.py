@@ -16,14 +16,13 @@ from train_encoder_v2 import *
 
 
 def make_parser():
-    parser = argparse.ArgumentParser(description='PyTorch Sequence Generator')
+    parser = argparse.ArgumentParser(description='Test Sequence Generation')
     parser.add_argument('--lang', type=str, default='en',
                        help='Can be en or fr')
-    parser.add_argument('--model_path', type=str, default='saved_models/en_encoder/model.pt',
+    parser.add_argument('--model_path', type=str, default='../model/saved_models/en/model_en_pretrained_epoch_1.pt',
                        help='change model name to get different checkpoints')
-    parser.add_argument('--dataset_dir', type=str, default='../generate-data/data_final/train,
+    parser.add_argument('--dataset_dir', type=str, default='../generate-data/data_final/train',
                         help='Dataset directory')
-                        help='which model checkpoint to analyze, default is -1 (the last)')
     parser.add_argument('--embeds_path', type=str, default='../tokenizer/data_final/indexed_data_words.json',
                         help='Embeddings path')
     parser.add_argument('--vocab_path', type=str, default='../tokenizer/data_final/vocab_words.json',
